@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import ReactDOM from "react-dom";
 import clsx from "clsx";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 
@@ -75,6 +76,21 @@ type DiffResult = {
   both: string[];
 };
 
+const NO_DRAG_SELECTOR = [
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "a",
+  "label",
+  "[role='button']",
+  "[contenteditable='true']",
+  "[data-tauri-drag-region='false']",
+  ".modal",
+  ".modal-backdrop",
+  ".no-drag"
+].join(",");
+
 type LaunchEvent = {
   stage: string;
   message?: string | null;
@@ -87,6 +103,7 @@ type ManifestVersion = {
 };
 
 type ContentTab = "mods" | "resourcepacks" | "shaderpacks";
+type SidebarView = "profiles" | "accounts" | "settings";
 
 type ModalType =
   | "create"
@@ -97,20 +114,12 @@ type ModalType =
   | "prepare"
   | "device-code";
 
-type DrawerType = "accounts" | "settings" | null;
-
 type ConfirmState = {
   title: string;
   message: string;
   confirmLabel?: string;
   tone?: "danger" | "default";
   onConfirm: () => void | Promise<void>;
-};
-
-const tabLabel: Record<ContentTab, string> = {
-  mods: "Mods",
-  resourcepacks: "Resourcepacks",
-  shaderpacks: "Shaderpacks"
 };
 
 function App() {
@@ -122,12 +131,14 @@ function App() {
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
   const [activeTab, setActiveTab] = useState<ContentTab>("mods");
+  const [sidebarView, setSidebarView] = useState<SidebarView>("profiles");
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
-  const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
   const [toast, setToast] = useState<{ title: string; detail?: string } | null>(null);
   const [launchStatus, setLaunchStatus] = useState<LaunchEvent | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const [debugDrag, setDebugDrag] = useState(false);
+  const isOnline = useOnline();
 
   const [createForm, setCreateForm] = useState({
     id: "",
@@ -142,30 +153,17 @@ function App() {
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [mcVersions, setMcVersions] = useState<ManifestVersion[]>([]);
   const [mcVersionLoading, setMcVersionLoading] = useState(false);
-  const [mcVersionError, setMcVersionError] = useState<string | null>(null);
   const [loaderVersions, setLoaderVersions] = useState<string[]>([]);
   const [loaderLoading, setLoaderLoading] = useState(false);
-  const [loaderError, setLoaderError] = useState<string | null>(null);
 
-  const [cloneForm, setCloneForm] = useState({
-    src: "",
-    dst: ""
-  });
+  const [cloneForm, setCloneForm] = useState({ src: "", dst: "" });
   const [cloneErrors, setCloneErrors] = useState<Record<string, string>>({});
 
-  const [diffForm, setDiffForm] = useState({
-    a: "",
-    b: ""
-  });
+  const [diffForm, setDiffForm] = useState({ a: "", b: "" });
   const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
   const [diffErrors, setDiffErrors] = useState<Record<string, string>>({});
 
-  const [contentForm, setContentForm] = useState({
-    input: "",
-    url: "",
-    name: "",
-    version: ""
-  });
+  const [contentForm, setContentForm] = useState({ input: "", url: "", name: "", version: "" });
   const [contentKind, setContentKind] = useState<ContentTab>("mods");
   const [contentErrors, setContentErrors] = useState<Record<string, string>>({});
 
@@ -176,9 +174,7 @@ function App() {
 
   const filteredProfiles = useMemo(() => {
     const query = profileFilter.trim().toLowerCase();
-    if (!query) {
-      return profiles;
-    }
+    if (!query) return profiles;
     return profiles.filter((id) => id.toLowerCase().includes(query));
   }, [profiles, profileFilter]);
 
@@ -203,7 +199,14 @@ function App() {
     return profile.shaderpacks;
   }, [profile, activeTab]);
 
-  const inputClass = (error?: string) => clsx("input", error && "input-error");
+  const contentCounts = useMemo(() => {
+    if (!profile) return { mods: 0, resourcepacks: 0, shaderpacks: 0 };
+    return {
+      mods: profile.mods.length,
+      resourcepacks: profile.resourcepacks.length,
+      shaderpacks: profile.shaderpacks.length
+    };
+  }, [profile]);
 
   useEffect(() => {
     void loadInitial();
@@ -234,6 +237,12 @@ function App() {
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
+      // Debug mode toggle: Cmd+Shift+D
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        setDebugDrag((prev) => !prev);
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
         openCreateModal();
@@ -248,12 +257,8 @@ function App() {
           setActiveModal(null);
           return;
         }
-        if (activeDrawer) {
-          setActiveDrawer(null);
-          return;
-        }
       }
-      if (event.key === "Enter") {
+      if (event.key === "Enter" && activeModal) {
         if (confirmState) {
           event.preventDefault();
           void confirmState.onConfirm();
@@ -265,9 +270,6 @@ function App() {
         } else if (activeModal === "clone") {
           event.preventDefault();
           void handleCloneProfile();
-        } else if (activeModal === "diff") {
-          event.preventDefault();
-          void handleDiffProfiles();
         } else if (activeModal === "add-content") {
           event.preventDefault();
           void handleAddContent();
@@ -279,7 +281,50 @@ function App() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [activeModal, activeDrawer, confirmState, deviceCode, devicePending]);
+  }, [activeModal, confirmState, deviceCode, devicePending]);
+
+  // Window dragging via Tauri's startDragging API
+  // This is needed because data-tauri-drag-region has known issues in Tauri 2.x on macOS
+  useEffect(() => {
+    const handleMouseDown = async (e: MouseEvent) => {
+      // Only handle primary (left) mouse button
+      if (e.button !== 0) return;
+
+      const target = e.target as HTMLElement;
+
+      // Check if the click is on the titlebar drag region or an element with data-tauri-drag-region
+      const dragRegion = target.closest(".titlebar-drag-region, [data-tauri-drag-region='true'], .drag-region");
+      if (!dragRegion) return;
+
+      // Don't drag if clicking on an interactive element
+      if (target.closest(NO_DRAG_SELECTOR)) return;
+
+      // Prevent default to avoid text selection during drag
+      e.preventDefault();
+
+      try {
+        const appWindow = getCurrentWindow();
+        if (e.detail === 2) {
+          // Double-click to toggle maximize
+          const isMaximized = await appWindow.isMaximized();
+          if (isMaximized) {
+            await appWindow.unmaximize();
+          } else {
+            await appWindow.maximize();
+          }
+        } else {
+          // Single click - start dragging
+          await appWindow.startDragging();
+        }
+      } catch (err) {
+        // Silently ignore errors (e.g., when running in browser during dev)
+        console.debug("Window drag not available:", err);
+      }
+    };
+
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, []);
 
   const loadInitial = async () => {
     await Promise.all([loadProfiles(), loadAccounts(), loadConfig()]);
@@ -287,12 +332,9 @@ function App() {
 
   const fetchMinecraftVersions = async () => {
     setMcVersionLoading(true);
-    setMcVersionError(null);
     try {
       const resp = await fetch("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json");
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
-      }
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       const list = (data.versions ?? []).map((entry: any) => ({
         id: String(entry.id),
@@ -304,7 +346,6 @@ function App() {
         setCreateForm((prev) => ({ ...prev, mcVersion: data.latest.release }));
       }
     } catch (err) {
-      setMcVersionError("Failed to load versions.");
       console.error(err);
     } finally {
       setMcVersionLoading(false);
@@ -313,38 +354,18 @@ function App() {
 
   const fetchLoaderVersions = async () => {
     setLoaderLoading(true);
-    setLoaderError(null);
     try {
       const resp = await fetch("https://meta.fabricmc.net/v2/versions/loader");
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
-      }
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       const versions = (data ?? [])
         .map((entry: any) => entry?.loader?.version)
-        .filter((value: string | undefined) => !!value) as string[];
+        .filter((v: string | undefined) => !!v) as string[];
       setLoaderVersions(Array.from(new Set(versions)));
     } catch (err) {
-      setLoaderError("Failed to load loader versions.");
       console.error(err);
     } finally {
       setLoaderLoading(false);
-    }
-  };
-
-  const ensureVersionData = () => {
-    if (mcVersions.length === 0 && !mcVersionLoading) {
-      void fetchMinecraftVersions();
-    }
-    if (createForm.loaderType === "fabric" && loaderVersions.length === 0 && !loaderLoading) {
-      void fetchLoaderVersions();
-    }
-  };
-
-  const refreshVersionData = async () => {
-    await fetchMinecraftVersions();
-    if (createForm.loaderType === "fabric") {
-      await fetchLoaderVersions();
     }
   };
 
@@ -395,10 +416,6 @@ function App() {
     setTimeout(() => setToast(null), 3800);
   };
 
-  const openConfirm = (state: ConfirmState) => {
-    setConfirmState(state);
-  };
-
   const runAction = async (action: () => Promise<void>) => {
     setIsWorking(true);
     try {
@@ -411,18 +428,10 @@ function App() {
   };
 
   const openCreateModal = () => {
-    setCreateForm({
-      id: "",
-      mcVersion: "",
-      loaderType: "",
-      loaderVersion: "",
-      java: "",
-      memory: "",
-      args: ""
-    });
+    setCreateForm({ id: "", mcVersion: "", loaderType: "", loaderVersion: "", java: "", memory: "", args: "" });
     setCreateErrors({});
     setActiveModal("create");
-    ensureVersionData();
+    if (mcVersions.length === 0) void fetchMinecraftVersions();
   };
 
   const openCloneModal = () => {
@@ -452,37 +461,19 @@ function App() {
   };
 
   useEffect(() => {
-    if (activeModal === "create") {
-      ensureVersionData();
-    }
-  }, [activeModal]);
-
-  useEffect(() => {
-    if (activeModal === "create" && createForm.loaderType === "fabric") {
-      if (loaderVersions.length === 0 && !loaderLoading) {
-        void fetchLoaderVersions();
-      }
+    if (activeModal === "create" && createForm.loaderType === "fabric" && loaderVersions.length === 0 && !loaderLoading) {
+      void fetchLoaderVersions();
     }
   }, [activeModal, createForm.loaderType, loaderVersions.length, loaderLoading]);
 
   const handleCreateProfile = async () => {
     const errors: Record<string, string> = {};
-    if (!createForm.id.trim()) {
-      errors.id = "Profile id is required.";
-    }
-    if (!createForm.mcVersion.trim()) {
-      errors.mcVersion = "Minecraft version is required.";
-    }
-    if (createForm.loaderType && !createForm.loaderVersion.trim()) {
-      errors.loaderVersion = "Loader version is required.";
-    }
-    if (!createForm.loaderType && createForm.loaderVersion.trim()) {
-      errors.loaderType = "Select a loader type.";
-    }
+    if (!createForm.id.trim()) errors.id = "Required";
+    if (!createForm.mcVersion.trim()) errors.mcVersion = "Required";
+    if (createForm.loaderType && !createForm.loaderVersion.trim()) errors.loaderVersion = "Required";
     setCreateErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
+    if (Object.keys(errors).length > 0) return;
+
     await runAction(async () => {
       const payload = {
         id: createForm.id.trim(),
@@ -502,19 +493,12 @@ function App() {
 
   const handleCloneProfile = async () => {
     const errors: Record<string, string> = {};
-    if (!cloneForm.src.trim()) {
-      errors.src = "Source profile is required.";
-    }
-    if (!cloneForm.dst.trim()) {
-      errors.dst = "Destination id is required.";
-    }
-    if (cloneForm.src.trim() && cloneForm.dst.trim() && cloneForm.src.trim() === cloneForm.dst.trim()) {
-      errors.dst = "Destination must be different.";
-    }
+    if (!cloneForm.src.trim()) errors.src = "Required";
+    if (!cloneForm.dst.trim()) errors.dst = "Required";
+    if (cloneForm.src === cloneForm.dst) errors.dst = "Must be different";
     setCloneErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
+    if (Object.keys(errors).length > 0) return;
+
     await runAction(async () => {
       await invoke("clone_profile_cmd", { src: cloneForm.src, dst: cloneForm.dst });
       await loadProfiles();
@@ -525,24 +509,14 @@ function App() {
 
   const handleDiffProfiles = async () => {
     const errors: Record<string, string> = {};
-    if (!diffForm.a.trim()) {
-      errors.a = "Pick a profile.";
-    }
-    if (!diffForm.b.trim()) {
-      errors.b = "Pick a profile.";
-    }
-    if (diffForm.a && diffForm.b && diffForm.a === diffForm.b) {
-      errors.b = "Pick a different profile.";
-    }
+    if (!diffForm.a) errors.a = "Required";
+    if (!diffForm.b) errors.b = "Required";
+    if (diffForm.a && diffForm.b && diffForm.a === diffForm.b) errors.b = "Pick different profile";
     setDiffErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
+    if (Object.keys(errors).length > 0) return;
+
     await runAction(async () => {
-      const result = await invoke<DiffResult>("diff_profiles_cmd", {
-        a: diffForm.a,
-        b: diffForm.b
-      });
+      const result = await invoke<DiffResult>("diff_profiles_cmd", { a: diffForm.a, b: diffForm.b });
       setDiffResult(result);
     });
   };
@@ -551,13 +525,10 @@ function App() {
     if (!selectedProfileId) return;
     const inputValue = contentForm.input || contentForm.url;
     const errors: Record<string, string> = {};
-    if (!inputValue) {
-      errors.input = "Pick a file or paste a URL.";
-    }
+    if (!inputValue) errors.input = "Pick a file or paste a URL";
     setContentErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
+    if (Object.keys(errors).length > 0) return;
+
     await runAction(async () => {
       const payload = {
         profile_id: selectedProfileId,
@@ -565,36 +536,28 @@ function App() {
         name: contentForm.name.trim() || null,
         version: contentForm.version.trim() || null
       };
-      if (contentKind === "mods") {
-        await invoke("add_mod_cmd", payload);
-      } else if (contentKind === "resourcepacks") {
-        await invoke("add_resourcepack_cmd", payload);
-      } else {
-        await invoke("add_shaderpack_cmd", payload);
-      }
+      if (contentKind === "mods") await invoke("add_mod_cmd", payload);
+      else if (contentKind === "resourcepacks") await invoke("add_resourcepack_cmd", payload);
+      else await invoke("add_shaderpack_cmd", payload);
       await loadProfile(selectedProfileId);
       setActiveModal(null);
     });
   };
 
-  const handleRemoveContent = async (item: ContentRef) => {
+  const handleRemoveContent = (item: ContentRef) => {
     if (!selectedProfileId) return;
-    openConfirm({
+    setConfirmState({
       title: `Remove ${item.name}?`,
-      message: "This will remove it from the profile but keep the stored file.",
+      message: "This removes it from the profile but keeps the stored file.",
       confirmLabel: "Remove",
       tone: "danger",
       onConfirm: async () => {
         setConfirmState(null);
         await runAction(async () => {
           const payload = { profile_id: selectedProfileId, target: item.hash };
-          if (activeTab === "mods") {
-            await invoke("remove_mod_cmd", payload);
-          } else if (activeTab === "resourcepacks") {
-            await invoke("remove_resourcepack_cmd", payload);
-          } else {
-            await invoke("remove_shaderpack_cmd", payload);
-          }
+          if (activeTab === "mods") await invoke("remove_mod_cmd", payload);
+          else if (activeTab === "resourcepacks") await invoke("remove_resourcepack_cmd", payload);
+          else await invoke("remove_shaderpack_cmd", payload);
           await loadProfile(selectedProfileId);
         });
       }
@@ -602,8 +565,7 @@ function App() {
   };
 
   const handleLaunch = async () => {
-    if (!selectedProfileId) return;
-    if (!activeAccount) {
+    if (!selectedProfileId || !activeAccount) {
       notify("No account", "Add an account first.");
       return;
     }
@@ -617,8 +579,7 @@ function App() {
   };
 
   const handlePrepare = async () => {
-    if (!selectedProfileId) return;
-    if (!activeAccount) {
+    if (!selectedProfileId || !activeAccount) {
       notify("No account", "Add an account first.");
       return;
     }
@@ -634,12 +595,8 @@ function App() {
 
   const handleOpenInstance = async () => {
     if (!selectedProfileId) return;
-    await runAction(async () => {
-      const path = await invoke<string>("instance_path_cmd", {
-        profile_id: selectedProfileId
-      });
-      await openPath(path);
-    });
+    const path = await invoke<string>("instance_path_cmd", { profile_id: selectedProfileId });
+    await openPath(path);
   };
 
   const handleCopyCommand = async () => {
@@ -650,10 +607,7 @@ function App() {
   };
 
   const handleFilePick = async () => {
-    const selected = await dialogOpen({
-      multiple: false,
-      directory: false
-    });
+    const selected = await dialogOpen({ multiple: false, directory: false });
     if (typeof selected === "string") {
       setContentForm((prev) => ({ ...prev, input: selected }));
     }
@@ -681,7 +635,7 @@ function App() {
       await loadAccounts();
       setActiveModal(null);
     } catch (err) {
-      notify("Account sign-in failed", String(err));
+      notify("Sign-in failed", String(err));
     } finally {
       setDevicePending(false);
     }
@@ -698,888 +652,760 @@ function App() {
     });
   };
 
+  const handleRemoveAccount = (account: Account) => {
+    setConfirmState({
+      title: `Remove ${account.username}?`,
+      message: "This account will be disconnected from Shard.",
+      confirmLabel: "Remove",
+      tone: "danger",
+      onConfirm: async () => {
+        setConfirmState(null);
+        await runAction(async () => {
+          await invoke("remove_account_cmd", { id: account.uuid });
+          await loadAccounts();
+        });
+      }
+    });
+  };
+
   const formatSource = (source?: string | null) => {
     if (!source) return null;
     try {
-      const url = new URL(source);
-      return url.host.replace(/^www\./, "");
+      return new URL(source).host.replace(/^www\./, "");
     } catch {
       return source;
     }
   };
 
   return (
-    <div className="min-h-screen px-5 pb-5 pt-10">
-      <div
-        data-tauri-drag-region
-        className="fixed top-0 left-0 right-0 h-7 z-50 bg-black/25 backdrop-blur"
-      />
-      <div className="glass rounded-[32px] p-5 shadow-glow fade-in min-h-[calc(100vh-52px)] flex flex-col">
-        <header
-          data-tauri-drag-region
-          className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4"
-        >
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl nebula flex items-center justify-center text-lg font-semibold text-white/90 shadow-soft">
-              S
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.3em] text-haze font-mono">
-                Shard Launcher
-              </p>
-              <h1 className="text-xl font-semibold tracking-tight">Minimal worlds, instant start.</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
+    <div className={clsx("app-root", debugDrag && "debug-drag")}>
+      {/* Title bar drag region for window dragging */}
+      <div className="titlebar-drag-region" />
+      {/* Visual background for sidebar area in titlebar (pointer-events: none) */}
+      <div className="sidebar-titlebar-bg" />
+
+      {/* Offline Indicator */}
+      {!isOnline && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 4,
+          background: "var(--accent-danger)",
+          zIndex: 100,
+          opacity: 0.8
+        }} title="You are offline" />
+      )}
+
+      <div className="app-layout drag-region">
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <div className="sidebar-section">
+          <div className="sidebar-header">Profiles</div>
+        </div>
+        <div className="sidebar-search">
+          <input
+            value={profileFilter}
+            onChange={(e) => setProfileFilter(e.target.value)}
+            placeholder="Search…"
+            data-tauri-drag-region="false"
+          />
+        </div>
+        <div className="profile-list">
+          {filteredProfiles.map((id) => (
             <button
+              key={id}
+              className={clsx("sidebar-item", selectedProfileId === id && "active")}
+              onClick={() => {
+                setSelectedProfileId(id);
+                setSidebarView("profiles");
+              }}
               data-tauri-drag-region="false"
-              className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm text-mist hover:bg-white/10"
-              onClick={() => setActiveDrawer("accounts")}
+            >
+              <span>{id}</span>
+              {selectedProfileId === id && <span className="indicator" />}
+            </button>
+          ))}
+          {filteredProfiles.length === 0 && (
+            <div style={{ padding: "8px 12px", fontSize: 13, color: "rgba(255,255,255,0.4)" }}>
+              No profiles
+            </div>
+          )}
+        </div>
+
+        <div className="sidebar-divider" />
+
+        <div className="sidebar-section">
+          <button className="sidebar-item primary-action" onClick={openCreateModal} data-tauri-drag-region="false">
+            <span>+ New profile</span>
+            <span className="kbd" style={{ marginLeft: "auto" }}>⌘N</span>
+          </button>
+          <button className="sidebar-item" onClick={openCloneModal} data-tauri-drag-region="false" disabled={!profile}>
+            Clone profile
+          </button>
+          <button className="sidebar-item" onClick={openDiffModal} data-tauri-drag-region="false">
+            Compare profiles
+          </button>
+        </div>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-header" style={{ padding: "0 0 8px" }}>Account</div>
+          {activeAccount ? (
+            <div className="account-badge">
+              <div className="account-badge-avatar">{activeAccount.username.charAt(0).toUpperCase()}</div>
+              <div className="account-badge-info">
+                <div className="account-badge-name">{activeAccount.username}</div>
+                <div className="account-badge-uuid">{activeAccount.uuid.slice(0, 8)}…</div>
+              </div>
+            </div>
+          ) : (
+            <button className="btn-secondary btn-sm w-full" onClick={openDeviceCodeModal} data-tauri-drag-region="false">
+              Add account
+            </button>
+          )}
+          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+            <button
+              className={clsx("sidebar-item", sidebarView === "accounts" && "active")}
+              style={{ flex: 1, justifyContent: "center" }}
+              onClick={() => setSidebarView("accounts")}
+              data-tauri-drag-region="false"
             >
               Accounts
             </button>
             <button
+              className={clsx("sidebar-item", sidebarView === "settings" && "active")}
+              style={{ flex: 1, justifyContent: "center" }}
+              onClick={() => setSidebarView("settings")}
               data-tauri-drag-region="false"
-              className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm text-mist hover:bg-white/10"
-              onClick={() => setActiveDrawer("settings")}
             >
               Settings
             </button>
           </div>
-        </header>
-
-        <div className="grid grid-cols-[260px_1fr] gap-6 pt-6 flex-1 min-h-0">
-          <aside className="panel rounded-2xl p-4 flex flex-col gap-4 min-h-0">
-            <div className="flex items-center justify-between">
-              <span className="text-xs uppercase tracking-widest text-haze font-mono">Profiles</span>
-              <button
-                data-tauri-drag-region="false"
-                className="text-xs text-accent hover:text-white"
-                onClick={openCreateModal}
-              >
-                + New
-              </button>
-            </div>
-            <input
-              value={profileFilter}
-              onChange={(event) => setProfileFilter(event.target.value)}
-              placeholder="Search profiles"
-              className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm outline-none focus:border-accent/50"
-              data-tauri-drag-region="false"
-            />
-            <div className="flex-1 overflow-auto space-y-2 pr-1">
-              {filteredProfiles.length === 0 ? (
-                <div className="text-sm text-haze/70">No profiles yet.</div>
-              ) : (
-                filteredProfiles.map((id) => (
-                  <button
-                    key={id}
-                    onClick={() => setSelectedProfileId(id)}
-                    className={clsx(
-                      "w-full text-left rounded-xl px-3 py-2 border transition",
-                      selectedProfileId === id
-                        ? "bg-white/10 border-white/20"
-                        : "border-transparent hover:border-white/10 hover:bg-white/5"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-mist">{id}</span>
-                      <span className="h-2 w-2 rounded-full bg-accent/60" />
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </aside>
-
-          <main className="flex flex-col gap-4 flex-1 min-h-0">
-            {!profile ? (
-              <section className="panel rounded-2xl p-8 text-center">
-                <h2 className="text-lg font-semibold">No profile selected</h2>
-                <p className="text-sm text-haze mt-2">
-                  Create your first profile to start launching.
-                </p>
-                <button
-                  className="mt-5 px-4 py-2 rounded-full bg-accent text-ink text-sm font-medium"
-                  onClick={openCreateModal}
-                >
-                  Create profile
-                </button>
-              </section>
-            ) : (
-              <>
-                <section className="panel rounded-2xl p-6 flex flex-col min-h-0">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.28em] text-haze font-mono">Active profile</p>
-                      <h2 className="text-2xl font-semibold mt-1">{profile.id}</h2>
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        <Chip label={`MC ${profile.mcVersion}`} />
-                        {profile.loader ? (
-                          <Chip label={`${profile.loader.type}@${profile.loader.version}`} />
-                        ) : (
-                          <Chip label="vanilla" />
-                        )}
-                        {profile.runtime.memory ? (
-                          <Chip label={`RAM ${profile.runtime.memory}`} />
-                        ) : null}
-                        {profile.runtime.java ? (
-                          <Chip label="Custom Java" />
-                        ) : null}
-                      </div>
-                      <div className="mt-4 grid grid-cols-3 gap-3">
-                        <Stat label="Mods" value={profile.mods.length} />
-                        <Stat label="Resourcepacks" value={profile.resourcepacks.length} />
-                        <Stat label="Shaderpacks" value={profile.shaderpacks.length} />
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-3">
-                      <div className="flex items-center gap-2">
-                        <select
-                          data-tauri-drag-region="false"
-                          className="rounded-full bg-white/5 border border-white/10 px-3 py-2 text-xs text-mist outline-none"
-                          value={activeAccount?.uuid ?? ""}
-                          onChange={(event) => setSelectedAccountId(event.target.value)}
-                        >
-                          {accounts?.accounts.length ? (
-                            accounts.accounts.map((account) => (
-                              <option key={account.uuid} value={account.uuid}>
-                                {account.username}
-                              </option>
-                            ))
-                          ) : (
-                            <option value="">No accounts</option>
-                          )}
-                        </select>
-                        <button
-                          data-tauri-drag-region="false"
-                          className="px-4 py-2 rounded-full bg-accent text-ink text-sm font-medium disabled:opacity-50"
-                          onClick={handleLaunch}
-                          disabled={!activeAccount || isWorking}
-                        >
-                          Launch
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          data-tauri-drag-region="false"
-                          className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-mist"
-                          onClick={handlePrepare}
-                        >
-                          Prepare
-                        </button>
-                        <button
-                          data-tauri-drag-region="false"
-                          className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-mist"
-                          onClick={openCloneModal}
-                        >
-                          Clone
-                        </button>
-                        <button
-                          data-tauri-drag-region="false"
-                          className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-mist"
-                          onClick={openDiffModal}
-                        >
-                          Diff
-                        </button>
-                        <button
-                          data-tauri-drag-region="false"
-                          className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-mist"
-                          onClick={() => setActiveModal("json")}
-                        >
-                          JSON
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-5 flex flex-wrap gap-2 text-xs text-haze">
-                    <button
-                      data-tauri-drag-region="false"
-                      className="px-3 py-1 rounded-full border border-white/10 hover:border-white/20"
-                      onClick={handleOpenInstance}
-                    >
-                      Open instance folder
-                    </button>
-                    <button
-                      data-tauri-drag-region="false"
-                      className="px-3 py-1 rounded-full border border-white/10 hover:border-white/20"
-                      onClick={handleCopyCommand}
-                    >
-                      Copy CLI command
-                    </button>
-                  </div>
-                  {launchStatus ? (
-                    <div className="mt-4 text-xs text-haze font-mono uppercase tracking-widest">
-                      {launchStatus.stage}
-                      {launchStatus.message ? ` · ${launchStatus.message}` : ""}
-                    </div>
-                  ) : null}
-                </section>
-
-                <section className="panel rounded-2xl p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      {(Object.keys(tabLabel) as ContentTab[]).map((tab) => (
-                        <button
-                          key={tab}
-                          className={clsx(
-                            "px-3 py-1.5 rounded-full text-xs",
-                            activeTab === tab
-                              ? "bg-white/10 text-mist border border-white/20"
-                              : "text-haze border border-transparent hover:border-white/10"
-                          )}
-                          onClick={() => setActiveTab(tab)}
-                        >
-                          {tabLabel[tab]}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      className="px-3 py-1.5 rounded-full bg-accent text-ink text-xs font-medium"
-                      onClick={() => openAddContentModal(activeTab)}
-                    >
-                      Add {tabLabel[activeTab]}
-                    </button>
-                  </div>
-                  <div className="mt-4 space-y-2 flex-1 overflow-auto pr-1">
-                    {contentItems.length === 0 ? (
-                      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-haze flex items-center justify-between">
-                        <span>No {tabLabel[activeTab].toLowerCase()} yet.</span>
-                        <button
-                          className="btn-secondary text-xs"
-                          onClick={() => openAddContentModal(activeTab)}
-                        >
-                          Add {tabLabel[activeTab]}
-                        </button>
-                      </div>
-                    ) : (
-                      contentItems.map((item) => (
-                        <div
-                          key={item.hash}
-                          className="flex items-start justify-between gap-3 rounded-xl border border-white/5 bg-white/5 px-3 py-3"
-                        >
-                          <div>
-                            <div className="text-sm text-mist font-medium">{item.name}</div>
-                            <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-haze">
-                              {item.version ? <MetaChip label={`v${item.version}`} /> : null}
-                              {item.source ? <MetaChip label={formatSource(item.source) ?? item.source} /> : null}
-                              {item.file_name ? <MetaChip label={item.file_name} /> : null}
-                            </div>
-                            <div className="mt-1 text-[11px] text-haze font-mono">
-                              {item.hash.slice(0, 14)}…
-                            </div>
-                          </div>
-                          <button
-                            className="text-xs text-haze hover:text-white"
-                            onClick={() => handleRemoveContent(item)}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </section>
-              </>
-            )}
-          </main>
         </div>
-      </div>
+      </aside>
 
-      {activeDrawer && (
-        <Drawer onClose={() => setActiveDrawer(null)} title={activeDrawer === "accounts" ? "Accounts" : "Settings"}>
-          {activeDrawer === "accounts" ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs uppercase tracking-widest text-haze font-mono">Connected</span>
-                <button
-                  className="text-xs text-accent"
-                  onClick={openDeviceCodeModal}
-                >
-                  + Add account
-                </button>
-              </div>
-              {accounts?.accounts.length ? (
-                accounts.accounts.map((account) => (
-                  <div
-                    key={account.uuid}
-                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2"
-                  >
-                    <div>
-                      <div className="text-sm font-medium text-mist">{account.username}</div>
-                      <div className="text-[11px] text-haze font-mono">{account.uuid.slice(0, 12)}...</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        className={clsx(
-                          "text-xs px-2 py-1 rounded-full",
-                          accounts.active === account.uuid
-                            ? "bg-accent text-ink"
-                            : "bg-white/5 text-mist"
-                        )}
-                        onClick={async () => {
-                          await runAction(async () => {
-                            await invoke("set_active_account_cmd", { id: account.uuid });
-                            await loadAccounts();
-                            setSelectedAccountId(account.uuid);
-                          });
-                        }}
-                      >
-                        {accounts.active === account.uuid ? "Active" : "Use"}
-                      </button>
-                      <button
-                        className="text-xs text-haze"
-                        onClick={() => {
-                          openConfirm({
-                            title: `Remove ${account.username}?`,
-                            message: "This account will be disconnected from Shard.",
-                            confirmLabel: "Remove",
-                            tone: "danger",
-                            onConfirm: async () => {
-                              setConfirmState(null);
-                              await runAction(async () => {
-                                await invoke("remove_account_cmd", { id: account.uuid });
-                                await loadAccounts();
-                              });
-                            }
-                          });
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-haze/70">No accounts connected.</div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs uppercase tracking-widest text-haze font-mono">Microsoft client id</label>
-                <input
-                  value={config?.msa_client_id ?? ""}
-                  onChange={(event) =>
-                    setConfig((prev) => ({
-                      ...(prev ?? {}),
-                      msa_client_id: event.target.value
-                    }))
-                  }
-                  className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm outline-none focus:border-accent/50"
-                  placeholder="Paste your client id"
-                />
-              </div>
-              <div>
-                <label className="text-xs uppercase tracking-widest text-haze font-mono">Microsoft client secret</label>
-                <input
-                  value={config?.msa_client_secret ?? ""}
-                  onChange={(event) =>
-                    setConfig((prev) => ({
-                      ...(prev ?? {}),
-                      msa_client_secret: event.target.value
-                    }))
-                  }
-                  className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm outline-none focus:border-accent/50"
-                  placeholder="Optional"
-                />
-              </div>
-              <button
-                className="w-full rounded-full bg-accent text-ink py-2 text-sm font-medium"
-                onClick={handleSaveConfig}
-              >
-                Save settings
-              </button>
+      {/* Main content */}
+      <main className="main-content">
+        <div className="content-area">
+          {sidebarView === "profiles" && profile && <ProfileView
+            key={profile.id}
+            profile={profile}
+            accounts={accounts}
+            activeAccount={activeAccount}
+            selectedAccountId={selectedAccountId}
+            setSelectedAccountId={setSelectedAccountId}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            contentItems={contentItems}
+            contentCounts={contentCounts}
+            isWorking={isWorking}
+            onLaunch={handleLaunch}
+            onPrepare={handlePrepare}
+            onOpenInstance={handleOpenInstance}
+            onCopyCommand={handleCopyCommand}
+            onShowJson={() => setActiveModal("json")}
+            onAddContent={openAddContentModal}
+            onRemoveContent={handleRemoveContent}
+            formatSource={formatSource}
+          />}
+
+          {sidebarView === "profiles" && !profile && (
+            <div className="empty-state">
+              <h3>No profile selected</h3>
+              <p>Create your first profile to start launching Minecraft.</p>
+              <button className="btn-primary" onClick={openCreateModal}>Create profile</button>
             </div>
           )}
-        </Drawer>
-      )}
 
+          {sidebarView === "accounts" && <AccountsView
+            accounts={accounts}
+            activeAccount={activeAccount}
+            onSetActive={async (id) => {
+              await runAction(async () => {
+                await invoke("set_active_account_cmd", { id });
+                await loadAccounts();
+                setSelectedAccountId(id);
+              });
+            }}
+            onRemove={handleRemoveAccount}
+            onAdd={openDeviceCodeModal}
+          />}
+
+          {sidebarView === "settings" && <SettingsView
+            config={config}
+            setConfig={setConfig}
+            onSave={handleSaveConfig}
+          />}
+        </div>
+      </main>
+
+      {/* Launch status bar */}
+      {launchStatus && (
+        <div className="launch-status">
+          <div className="launch-status-dot" />
+          <div className="launch-status-text">
+            {launchStatus.stage}
+            {launchStatus.message && ` — ${launchStatus.message}`}
+          </div>
+        </div>
+      )}
+      </div>
+
+      {/* Modals */}
       <Modal open={activeModal === "create"} onClose={() => setActiveModal(null)} title="Create profile">
-        <div className="space-y-4">
-          <Field label="Profile id" error={createErrors.id}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Field label="Profile ID" error={createErrors.id}>
             <input
+              className={clsx("input", createErrors.id && "input-error")}
               value={createForm.id}
-              onChange={(event) => setCreateForm({ ...createForm, id: event.target.value })}
-              className={inputClass(createErrors.id)}
-              placeholder="my-profile"
+              onChange={(e) => setCreateForm({ ...createForm, id: e.target.value })}
+              placeholder="my-modpack"
             />
           </Field>
           <Field label="Minecraft version" error={createErrors.mcVersion}>
-            <div className="flex items-center gap-2">
-              <select
-                value={createForm.mcVersion}
-                onChange={(event) => setCreateForm({ ...createForm, mcVersion: event.target.value })}
-                className={inputClass(createErrors.mcVersion)}
-              >
-                <option value="">
-                  {mcVersionLoading ? "Loading versions…" : "Select version"}
-                </option>
-                {visibleVersions.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.id} {entry.type === "snapshot" ? "(snapshot)" : ""}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="btn-secondary whitespace-nowrap"
-                onClick={refreshVersionData}
-                disabled={mcVersionLoading}
-              >
-                {mcVersionLoading ? "Loading" : "Refresh"}
-              </button>
-            </div>
-            {mcVersionError ? <div className="mt-1 text-[11px] text-rose-300">{mcVersionError}</div> : null}
-            <div className="mt-2 flex items-center justify-between text-[11px] text-haze">
-              <button
-                className="text-haze hover:text-white"
-                onClick={() => setShowSnapshots((value) => !value)}
-              >
+            <select
+              className={clsx("input", createErrors.mcVersion && "input-error")}
+              value={createForm.mcVersion}
+              onChange={(e) => setCreateForm({ ...createForm, mcVersion: e.target.value })}
+            >
+              <option value="">{mcVersionLoading ? "Loading…" : "Select version"}</option>
+              {visibleVersions.map((v) => (
+                <option key={v.id} value={v.id}>{v.id}{v.type === "snapshot" ? " (snapshot)" : ""}</option>
+              ))}
+            </select>
+            <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+              <button type="button" className="link" onClick={() => setShowSnapshots(!showSnapshots)}>
                 {showSnapshots ? "Hide snapshots" : "Show snapshots"}
               </button>
-              {latestRelease ? (
-                <button
-                  className="text-haze hover:text-white"
-                  onClick={() => setCreateForm((prev) => ({ ...prev, mcVersion: latestRelease }))}
-                >
-                  Use latest release
+              {latestRelease && (
+                <button type="button" className="link" onClick={() => setCreateForm((p) => ({ ...p, mcVersion: latestRelease }))}>
+                  Use latest ({latestRelease})
                 </button>
-              ) : null}
+              )}
             </div>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Loader type" error={createErrors.loaderType}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Field label="Loader" error={createErrors.loaderType}>
               <select
+                className="input"
                 value={createForm.loaderType || "none"}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setCreateForm((prev) => ({
-                    ...prev,
-                    loaderType: value === "none" ? "" : value,
-                    loaderVersion: value === "none" ? "" : prev.loaderVersion
-                  }));
-                }}
-                className={inputClass(createErrors.loaderType)}
+                onChange={(e) => setCreateForm((p) => ({
+                  ...p,
+                  loaderType: e.target.value === "none" ? "" : e.target.value,
+                  loaderVersion: e.target.value === "none" ? "" : p.loaderVersion
+                }))}
               >
-                <option value="none">None</option>
+                <option value="none">None (Vanilla)</option>
                 <option value="fabric">Fabric</option>
               </select>
             </Field>
-            {createForm.loaderType ? (
-              <Field label="Loader version" error={createErrors.loaderVersion}>
-                <select
-                  value={createForm.loaderVersion}
-                  onChange={(event) => setCreateForm({ ...createForm, loaderVersion: event.target.value })}
-                  className={inputClass(createErrors.loaderVersion)}
-                >
-                  <option value="">
-                    {loaderLoading ? "Loading…" : "Select loader version"}
-                  </option>
-                  {loaderVersions.map((version) => (
-                    <option key={version} value={version}>
-                      {version}
-                    </option>
-                  ))}
-                </select>
-                {loaderError ? <div className="mt-1 text-[11px] text-rose-300">{loaderError}</div> : null}
-              </Field>
-            ) : (
-              <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-haze flex items-center">
-                No loader selected
-              </div>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Java path">
-              <input
-                value={createForm.java}
-                onChange={(event) => setCreateForm({ ...createForm, java: event.target.value })}
-                className={inputClass()}
-                placeholder="/path/to/java"
-              />
-            </Field>
-            <Field label="Memory">
-              <input
-                value={createForm.memory}
-                onChange={(event) => setCreateForm({ ...createForm, memory: event.target.value })}
-                className={inputClass()}
-                placeholder="4G"
-              />
+            <Field label="Loader version" error={createErrors.loaderVersion}>
+              <select
+                className={clsx("input", createErrors.loaderVersion && "input-error")}
+                value={createForm.loaderVersion}
+                onChange={(e) => setCreateForm({ ...createForm, loaderVersion: e.target.value })}
+                disabled={!createForm.loaderType}
+              >
+                <option value="">{loaderLoading ? "Loading…" : "Select version"}</option>
+                {loaderVersions.map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
             </Field>
           </div>
-          <Field label="Extra JVM args">
-            <input
-              value={createForm.args}
-              onChange={(event) => setCreateForm({ ...createForm, args: event.target.value })}
-              className={inputClass()}
-              placeholder="-Dfile.encoding=UTF-8"
-            />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Field label="Java path (optional)">
+              <input className="input" value={createForm.java} onChange={(e) => setCreateForm({ ...createForm, java: e.target.value })} placeholder="/usr/bin/java" />
+            </Field>
+            <Field label="Memory (optional)">
+              <input className="input" value={createForm.memory} onChange={(e) => setCreateForm({ ...createForm, memory: e.target.value })} placeholder="4G" />
+            </Field>
+          </div>
+          <Field label="Extra JVM args (optional)">
+            <input className="input" value={createForm.args} onChange={(e) => setCreateForm({ ...createForm, args: e.target.value })} placeholder="-Dfile.encoding=UTF-8" />
           </Field>
-          <div className="flex justify-end gap-2">
-            <button className="btn-secondary" onClick={() => setActiveModal(null)}>
-              Cancel
-            </button>
-            <button className="btn-primary" onClick={handleCreateProfile}>
-              Create
-            </button>
+          <div className="modal-footer">
+            <button className="btn-secondary" onClick={() => setActiveModal(null)}>Cancel</button>
+            <button className="btn-primary" onClick={handleCreateProfile}>Create</button>
           </div>
         </div>
       </Modal>
 
       <Modal open={activeModal === "clone"} onClose={() => setActiveModal(null)} title="Clone profile">
-        <div className="space-y-4">
-          <Field label="Source" error={cloneErrors.src}>
-            <input
-              value={cloneForm.src}
-              onChange={(event) => setCloneForm({ ...cloneForm, src: event.target.value })}
-              className={inputClass(cloneErrors.src)}
-            />
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Field label="Source profile" error={cloneErrors.src}>
+            <select className={clsx("input", cloneErrors.src && "input-error")} value={cloneForm.src} onChange={(e) => setCloneForm({ ...cloneForm, src: e.target.value })}>
+              <option value="">Select profile</option>
+              {profiles.map((id) => <option key={id} value={id}>{id}</option>)}
+            </select>
           </Field>
-          <Field label="Destination id" error={cloneErrors.dst}>
-            <input
-              value={cloneForm.dst}
-              onChange={(event) => setCloneForm({ ...cloneForm, dst: event.target.value })}
-              className={inputClass(cloneErrors.dst)}
-              placeholder="new-profile"
-            />
+          <Field label="New profile ID" error={cloneErrors.dst}>
+            <input className={clsx("input", cloneErrors.dst && "input-error")} value={cloneForm.dst} onChange={(e) => setCloneForm({ ...cloneForm, dst: e.target.value })} placeholder="my-modpack-copy" />
           </Field>
-          <div className="flex justify-end gap-2">
-            <button className="btn-secondary" onClick={() => setActiveModal(null)}>
-              Cancel
-            </button>
-            <button className="btn-primary" onClick={handleCloneProfile}>
-              Clone
-            </button>
+          <div className="modal-footer">
+            <button className="btn-secondary" onClick={() => setActiveModal(null)}>Cancel</button>
+            <button className="btn-primary" onClick={handleCloneProfile}>Clone</button>
           </div>
         </div>
       </Modal>
 
-      <Modal open={activeModal === "diff"} onClose={() => setActiveModal(null)} title="Diff profiles">
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+      <Modal open={activeModal === "diff"} onClose={() => setActiveModal(null)} title="Compare profiles" large>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Field label="Profile A" error={diffErrors.a}>
-              <select
-                value={diffForm.a}
-                onChange={(event) => setDiffForm({ ...diffForm, a: event.target.value })}
-                className={inputClass(diffErrors.a)}
-              >
+              <select className={clsx("input", diffErrors.a && "input-error")} value={diffForm.a} onChange={(e) => setDiffForm({ ...diffForm, a: e.target.value })}>
                 <option value="">Select</option>
-                {profiles.map((id) => (
-                  <option key={id} value={id}>
-                    {id}
-                  </option>
-                ))}
+                {profiles.map((id) => <option key={id} value={id}>{id}</option>)}
               </select>
             </Field>
             <Field label="Profile B" error={diffErrors.b}>
-              <select
-                value={diffForm.b}
-                onChange={(event) => setDiffForm({ ...diffForm, b: event.target.value })}
-                className={inputClass(diffErrors.b)}
-              >
+              <select className={clsx("input", diffErrors.b && "input-error")} value={diffForm.b} onChange={(e) => setDiffForm({ ...diffForm, b: e.target.value })}>
                 <option value="">Select</option>
-                {profiles.map((id) => (
-                  <option key={id} value={id}>
-                    {id}
-                  </option>
-                ))}
+                {profiles.map((id) => <option key={id} value={id}>{id}</option>)}
               </select>
             </Field>
           </div>
-          <button className="btn-primary w-full" onClick={handleDiffProfiles}>
-            Compare
-          </button>
+          <button className="btn-primary" onClick={handleDiffProfiles}>Compare</button>
           {diffResult && (
-            <div className="grid grid-cols-3 gap-3 text-sm text-haze">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginTop: 8 }}>
               <div>
-                <div className="text-xs uppercase font-mono text-haze">Only in A</div>
-                <ul className="mt-2 space-y-1">
-                  {diffResult.only_a.length === 0 ? <li>—</li> : diffResult.only_a.map((item) => <li key={item}>{item}</li>)}
-                </ul>
+                <div className="field-label">Only in A</div>
+                {diffResult.only_a.length === 0 ? <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>—</div> : diffResult.only_a.map((n) => <div key={n} style={{ fontSize: 13 }}>{n}</div>)}
               </div>
               <div>
-                <div className="text-xs uppercase font-mono text-haze">Only in B</div>
-                <ul className="mt-2 space-y-1">
-                  {diffResult.only_b.length === 0 ? <li>—</li> : diffResult.only_b.map((item) => <li key={item}>{item}</li>)}
-                </ul>
+                <div className="field-label">Only in B</div>
+                {diffResult.only_b.length === 0 ? <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>—</div> : diffResult.only_b.map((n) => <div key={n} style={{ fontSize: 13 }}>{n}</div>)}
               </div>
               <div>
-                <div className="text-xs uppercase font-mono text-haze">Both</div>
-                <ul className="mt-2 space-y-1">
-                  {diffResult.both.length === 0 ? <li>—</li> : diffResult.both.map((item) => <li key={item}>{item}</li>)}
-                </ul>
+                <div className="field-label">In both</div>
+                {diffResult.both.length === 0 ? <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>—</div> : diffResult.both.map((n) => <div key={n} style={{ fontSize: 13 }}>{n}</div>)}
               </div>
             </div>
           )}
         </div>
       </Modal>
 
-      <Modal open={activeModal === "json"} onClose={() => setActiveModal(null)} title="Profile JSON">
-        <pre className="text-xs bg-black/40 border border-white/10 rounded-xl p-4 max-h-[400px] overflow-auto font-mono">
+      <Modal open={activeModal === "json"} onClose={() => setActiveModal(null)} title="Profile JSON" large>
+        <pre style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: 16, fontSize: 12, fontFamily: "var(--font-mono)", overflow: "auto", maxHeight: 400 }}>
           {profile ? JSON.stringify(profile, null, 2) : "No profile"}
         </pre>
       </Modal>
 
-      <Modal
-        open={activeModal === "add-content"}
-        onClose={() => setActiveModal(null)}
-        title={`Add ${tabLabel[contentKind]}`}
-      >
-        <div className="space-y-4">
-          <button className="btn-secondary w-full" onClick={handleFilePick}>
-            Choose file
-          </button>
-          {contentForm.input ? (
-            <div className="text-xs text-haze font-mono break-all">{contentForm.input}</div>
-          ) : null}
+      <Modal open={activeModal === "add-content"} onClose={() => setActiveModal(null)} title={`Add ${contentKind === "mods" ? "mod" : contentKind === "resourcepacks" ? "resource pack" : "shader pack"}`}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <button className="btn-secondary" onClick={handleFilePick}>Choose file…</button>
+          {contentForm.input && <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "rgba(255,255,255,0.6)", wordBreak: "break-all" }}>{contentForm.input}</div>}
           <Field label="Or paste a URL" error={contentErrors.input}>
-            <input
-              value={contentForm.url}
-              onChange={(event) => setContentForm({ ...contentForm, url: event.target.value })}
-              className={inputClass(contentErrors.input)}
-              placeholder="https://example.com/mod.jar"
-            />
+            <input className={clsx("input", contentErrors.input && "input-error")} value={contentForm.url} onChange={(e) => setContentForm({ ...contentForm, url: e.target.value })} placeholder="https://modrinth.com/…" />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Field label="Name (optional)">
-              <input
-                value={contentForm.name}
-                onChange={(event) => setContentForm({ ...contentForm, name: event.target.value })}
-                className={inputClass()}
-              />
+              <input className="input" value={contentForm.name} onChange={(e) => setContentForm({ ...contentForm, name: e.target.value })} />
             </Field>
             <Field label="Version (optional)">
-              <input
-                value={contentForm.version}
-                onChange={(event) => setContentForm({ ...contentForm, version: event.target.value })}
-                className={inputClass()}
-              />
+              <input className="input" value={contentForm.version} onChange={(e) => setContentForm({ ...contentForm, version: e.target.value })} />
             </Field>
           </div>
-          <div className="flex justify-end gap-2">
-            <button className="btn-secondary" onClick={() => setActiveModal(null)}>
-              Cancel
-            </button>
-            <button className="btn-primary" onClick={handleAddContent}>
-              Add
-            </button>
+          <div className="modal-footer">
+            <button className="btn-secondary" onClick={() => setActiveModal(null)}>Cancel</button>
+            <button className="btn-primary" onClick={handleAddContent}>Add</button>
           </div>
         </div>
       </Modal>
 
-      <Modal open={activeModal === "prepare"} onClose={() => setActiveModal(null)} title="Launch plan">
-        {plan ? (
-          <div className="space-y-3 text-xs text-haze font-mono">
-            <div>instance: {plan.instance_dir}</div>
-            <div>java: {plan.java_exec}</div>
-            <div>main class: {plan.main_class}</div>
-            <div>classpath: {plan.classpath}</div>
-            <div>jvm args: {plan.jvm_args.join(" ")}</div>
-            <div>game args: {plan.game_args.join(" ")}</div>
+      <Modal open={activeModal === "prepare"} onClose={() => setActiveModal(null)} title="Launch plan" large>
+        {plan && (
+          <div style={{ fontSize: 13, fontFamily: "var(--font-mono)", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div><span style={{ color: "rgba(255,255,255,0.5)" }}>instance:</span> {plan.instance_dir}</div>
+            <div><span style={{ color: "rgba(255,255,255,0.5)" }}>java:</span> {plan.java_exec}</div>
+            <div><span style={{ color: "rgba(255,255,255,0.5)" }}>main class:</span> {plan.main_class}</div>
+            <div><span style={{ color: "rgba(255,255,255,0.5)" }}>jvm args:</span> {plan.jvm_args.join(" ")}</div>
+            <div><span style={{ color: "rgba(255,255,255,0.5)" }}>game args:</span> {plan.game_args.join(" ")}</div>
           </div>
-        ) : (
-          <div className="text-sm text-haze">No plan.</div>
         )}
       </Modal>
 
-      <Modal
-        open={activeModal === "device-code"}
-        onClose={() => setActiveModal(null)}
-        title="Connect account"
-      >
-        <div className="space-y-4">
+      <Modal open={activeModal === "device-code"} onClose={() => setActiveModal(null)} title="Add Microsoft account">
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {!deviceCode ? (
             <>
-              <p className="text-sm text-haze">
-                Request a device code to sign in with your Microsoft account.
+              <p style={{ margin: 0, fontSize: 14, color: "rgba(255,255,255,0.6)" }}>
+                Sign in with your Microsoft account to play Minecraft.
               </p>
-              <button className="btn-primary w-full" onClick={handleRequestDeviceCode}>
-                Request device code
-              </button>
+              <button className="btn-primary" onClick={handleRequestDeviceCode}>Get sign-in code</button>
             </>
           ) : (
             <>
-              <div className="rounded-xl bg-black/40 border border-white/10 p-4">
-                <div className="text-xs uppercase font-mono text-haze">Code</div>
-                <div className="text-2xl font-semibold tracking-widest mt-2">{deviceCode.user_code}</div>
-                <div className="text-xs text-haze mt-2">{deviceCode.verification_uri}</div>
+              <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 12, padding: 20, textAlign: "center" }}>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Your code</div>
+                <div style={{ fontSize: 32, fontWeight: 600, letterSpacing: "0.1em", marginTop: 8 }}>{deviceCode.user_code}</div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 8 }}>{deviceCode.verification_uri}</div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="btn-secondary flex-1"
-                  onClick={() => openUrl(deviceCode.verification_uri)}
-                >
-                  Open browser
-                </button>
-                <button
-                  className="btn-secondary flex-1"
-                  onClick={() => navigator.clipboard.writeText(deviceCode.user_code)}
-                >
-                  Copy code
-                </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn-secondary" style={{ flex: 1 }} onClick={() => openUrl(deviceCode.verification_uri)}>Open browser</button>
+                <button className="btn-secondary" style={{ flex: 1 }} onClick={() => navigator.clipboard.writeText(deviceCode.user_code)}>Copy code</button>
               </div>
-              <button
-                className="btn-primary w-full"
-                onClick={handleFinishDeviceCode}
-                disabled={devicePending}
-              >
-                {devicePending ? "Waiting…" : "I have signed in"}
+              <button className="btn-primary" onClick={handleFinishDeviceCode} disabled={devicePending}>
+                {devicePending ? "Waiting…" : "I've signed in"}
               </button>
             </>
           )}
         </div>
       </Modal>
 
+      {/* Confirm dialog */}
       {confirmState && (
-        <ConfirmModal
-          state={confirmState}
-          onCancel={() => setConfirmState(null)}
-        />
+        <div className="modal-backdrop" onClick={() => setConfirmState(null)}>
+          <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title">{confirmState.title}</h3>
+            <p style={{ margin: 0, fontSize: 14, color: "rgba(255,255,255,0.6)" }}>{confirmState.message}</p>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setConfirmState(null)}>Cancel</button>
+              <button className={confirmState.tone === "danger" ? "btn-danger" : "btn-primary"} onClick={confirmState.onConfirm}>
+                {confirmState.confirmLabel ?? "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
+      {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 rounded-2xl bg-black/70 border border-white/10 px-4 py-3 shadow-soft">
-          <div className="text-sm font-semibold text-mist">{toast.title}</div>
-          {toast.detail ? (
-            <div className="text-xs text-haze mt-1 max-w-[260px]">{toast.detail}</div>
-          ) : null}
+        <div className="toast">
+          <div className="toast-title">{toast.title}</div>
+          {toast.detail && <div className="toast-detail">{toast.detail}</div>}
         </div>
       )}
     </div>
   );
 }
 
-function Chip({ label }: { label: string }) {
+/* Profile View */
+function ProfileView({
+  profile,
+  accounts,
+  activeAccount,
+  selectedAccountId,
+  setSelectedAccountId,
+  activeTab,
+  setActiveTab,
+  contentItems,
+  contentCounts,
+  isWorking,
+  onLaunch,
+  onPrepare,
+  onOpenInstance,
+  onCopyCommand,
+  onShowJson,
+  onAddContent,
+  onRemoveContent,
+  formatSource
+}: {
+  profile: Profile;
+  accounts: Accounts | null;
+  activeAccount: Account | null;
+  selectedAccountId: string | null;
+  setSelectedAccountId: (id: string | null) => void;
+  activeTab: ContentTab;
+  setActiveTab: (tab: ContentTab) => void;
+  contentItems: ContentRef[];
+  contentCounts: { mods: number; resourcepacks: number; shaderpacks: number };
+  isWorking: boolean;
+  onLaunch: () => void;
+  onPrepare: () => void;
+  onOpenInstance: () => void;
+  onCopyCommand: () => void;
+  onShowJson: () => void;
+  onAddContent: (kind: ContentTab) => void;
+  onRemoveContent: (item: ContentRef) => void;
+  formatSource: (s?: string | null) => string | null;
+}) {
   return (
-    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-haze">
-      {label}
-    </span>
-  );
-}
+    <div className="view-transition">
+      <h1 className="page-title">{profile.id}</h1>
 
-function MetaChip({ label }: { label: string }) {
-  return (
-    <span className="inline-flex max-w-[200px] items-center truncate rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-haze">
-      {label}
-    </span>
-  );
-}
+      {/* Profile details */}
+      <div className="setting-row">
+        <div className="setting-label">
+          <h4>Minecraft version</h4>
+          <p>Game version for this profile</p>
+        </div>
+        <div className="setting-control">
+          <span style={{ fontSize: 14 }}>{profile.mcVersion}</span>
+        </div>
+      </div>
 
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left">
-      <div className="text-lg font-semibold text-mist leading-none">{value}</div>
-      <div className="text-[10px] uppercase tracking-widest text-haze font-mono mt-1">{label}</div>
+      <div className="setting-row">
+        <div className="setting-label">
+          <h4>Mod loader</h4>
+          <p>Framework for loading mods</p>
+        </div>
+        <div className="setting-control">
+          <span style={{ fontSize: 14 }}>{profile.loader ? `${profile.loader.type} ${profile.loader.version}` : "Vanilla"}</span>
+        </div>
+      </div>
+
+      {profile.runtime.memory && (
+        <div className="setting-row">
+          <div className="setting-label">
+            <h4>Memory</h4>
+            <p>Allocated RAM for the game</p>
+          </div>
+          <div className="setting-control">
+            <span style={{ fontSize: 14 }}>{profile.runtime.memory}</span>
+          </div>
+        </div>
+      )}
+
+      {profile.runtime.java && (
+        <div className="setting-row">
+          <div className="setting-label">
+            <h4>Java</h4>
+            <p>Custom Java runtime path</p>
+          </div>
+          <div className="setting-control">
+            <span style={{ fontSize: 14, fontFamily: "var(--font-mono)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>{profile.runtime.java}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Launch row */}
+      <div className="setting-row" style={{ paddingTop: 24, paddingBottom: 24, borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: 8 }}>
+        <div className="setting-label">
+          <h4>Launch game</h4>
+          <p>Select an account and start playing</p>
+        </div>
+        <div className="setting-control">
+          <select
+            className="select"
+            value={activeAccount?.uuid ?? ""}
+            onChange={(e) => setSelectedAccountId(e.target.value)}
+            style={{ minWidth: 140 }}
+          >
+            {accounts?.accounts.length ? (
+              accounts.accounts.map((a) => <option key={a.uuid} value={a.uuid}>{a.username}</option>)
+            ) : (
+              <option value="">No accounts</option>
+            )}
+          </select>
+          <button className="btn-primary" onClick={onLaunch} disabled={!activeAccount || isWorking}>
+            Launch
+          </button>
+        </div>
+      </div>
+
+      {/* Quick actions */}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button className="btn-ghost btn-sm" onClick={onOpenInstance}>Open folder</button>
+        <button className="btn-ghost btn-sm" onClick={onCopyCommand}>Copy CLI command</button>
+        <button className="btn-ghost btn-sm" onClick={onPrepare}>View launch plan</button>
+        <button className="btn-ghost btn-sm" onClick={onShowJson}>View JSON</button>
+      </div>
+
+      {/* Content section */}
+      <div className="section-header" style={{ marginTop: 40 }}>
+        <span>Content</span>
+        <button className="link" style={{ fontSize: 12 }} onClick={() => onAddContent(activeTab)}>+ Add {activeTab === "mods" ? "mod" : activeTab === "resourcepacks" ? "resource pack" : "shader pack"}</button>
+      </div>
+
+      <div className="content-tabs">
+        <button className={clsx("content-tab", activeTab === "mods" && "active")} onClick={() => setActiveTab("mods")}>
+          Mods<span className="count">{contentCounts.mods}</span>
+        </button>
+        <button className={clsx("content-tab", activeTab === "resourcepacks" && "active")} onClick={() => setActiveTab("resourcepacks")}>
+          Resource Packs<span className="count">{contentCounts.resourcepacks}</span>
+        </button>
+        <button className={clsx("content-tab", activeTab === "shaderpacks" && "active")} onClick={() => setActiveTab("shaderpacks")}>
+          Shaders<span className="count">{contentCounts.shaderpacks}</span>
+        </button>
+      </div>
+
+      {contentItems.length === 0 ? (
+        <div className="empty-state">
+          <h3>No {activeTab === "mods" ? "mods" : activeTab === "resourcepacks" ? "resource packs" : "shaders"} yet</h3>
+          <p>Add your first one to get started.</p>
+          <button className="btn-secondary btn-sm" onClick={() => onAddContent(activeTab)}>Add {activeTab === "mods" ? "mod" : activeTab === "resourcepacks" ? "resource pack" : "shader pack"}</button>
+        </div>
+      ) : (
+        <div>
+          {contentItems.map((item) => (
+            <div key={item.hash} className="content-item">
+              <div className="content-item-info">
+                <h5>{item.name}</h5>
+                <p>
+                  {[
+                    item.version && `v${item.version}`,
+                    formatSource(item.source),
+                    item.file_name
+                  ].filter(Boolean).join(" · ") || item.hash.slice(0, 12)}
+                </p>
+              </div>
+              <div className="content-item-actions">
+                <button className="btn-ghost btn-sm" onClick={() => onRemoveContent(item)}>Remove</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
+/* Accounts View */
+function AccountsView({
+  accounts,
+  activeAccount,
+  onSetActive,
+  onRemove,
+  onAdd
+}: {
+  accounts: Accounts | null;
+  activeAccount: Account | null;
+  onSetActive: (id: string) => void;
+  onRemove: (account: Account) => void;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="view-transition">
+      <h1 className="page-title">Accounts</h1>
+      <p style={{ margin: "-24px 0 24px", fontSize: 14, color: "var(--text-secondary)" }}>
+        Manage your Microsoft accounts for Minecraft.
+      </p>
+
+      {accounts?.accounts.map((account) => (
+        <div key={account.uuid} className="setting-row">
+          <div className="setting-label">
+            <h4>{account.username}</h4>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{account.uuid}</p>
+          </div>
+          <div className="setting-control">
+            {accounts.active === account.uuid ? (
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Active</span>
+            ) : (
+              <button className="btn-secondary btn-sm" onClick={() => onSetActive(account.uuid)}>Use</button>
+            )}
+            <button className="btn-ghost btn-sm" onClick={() => onRemove(account)}>Remove</button>
+          </div>
+        </div>
+      ))}
+
+      {(!accounts || accounts.accounts.length === 0) && (
+        <div className="empty-state">
+          <h3>No accounts</h3>
+          <p>Add a Microsoft account to play Minecraft.</p>
+        </div>
+      )}
+
+      <div style={{ marginTop: 24 }}>
+        <button className="btn-primary" onClick={onAdd}>Add account</button>
+      </div>
+    </div>
+  );
+}
+
+/* Settings View */
+function SettingsView({
+  config,
+  setConfig,
+  onSave
+}: {
+  config: Config | null;
+  setConfig: React.Dispatch<React.SetStateAction<Config | null>>;
+  onSave: () => void;
+}) {
+  return (
+    <div className="view-transition">
+      <h1 className="page-title">Settings</h1>
+
+      <div className="setting-row">
+        <div className="setting-label">
+          <h4>Microsoft Client ID</h4>
+          <p>Your Azure app client ID for authentication</p>
+        </div>
+        <div className="setting-control">
+          <input
+            className="input"
+            style={{ width: 240 }}
+            value={config?.msa_client_id ?? ""}
+            onChange={(e) => setConfig((p) => ({ ...p, msa_client_id: e.target.value }))}
+            placeholder="Enter client ID"
+          />
+        </div>
+      </div>
+
+      <div className="setting-row">
+        <div className="setting-label">
+          <h4>Microsoft Client Secret</h4>
+          <p>Optional client secret for confidential apps</p>
+        </div>
+        <div className="setting-control">
+          <input
+            className="input"
+            style={{ width: 240 }}
+            type="password"
+            value={config?.msa_client_secret ?? ""}
+            onChange={(e) => setConfig((p) => ({ ...p, msa_client_secret: e.target.value }))}
+            placeholder="Enter client secret"
+          />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <button className="btn-primary" onClick={onSave}>Save settings</button>
+      </div>
+    </div>
+  );
+}
+
+/* Modal component */
 function Modal({
   open,
   onClose,
   title,
+  large,
   children
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  large?: boolean;
   children: React.ReactNode;
 }) {
   if (!open) return null;
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onClose}>
-      <div
-        className="glass w-full max-w-2xl rounded-2xl p-6"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">{title}</h3>
-          <button className="text-haze" onClick={onClose}>
-            Close
-          </button>
-        </div>
-        <div className="mt-4">{children}</div>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className={clsx("modal", large && "modal-lg")} onClick={(e) => e.stopPropagation()}>
+        <h3 className="modal-title">{title}</h3>
+        {children}
       </div>
     </div>,
     document.body
   );
 }
 
-function Drawer({
-  title,
-  onClose,
-  children
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
+/* Field component */
+function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/30" onClick={onClose}>
-      <div className="panel w-[360px] h-full p-6" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">{title}</h3>
-          <button className="text-haze" onClick={onClose}>
-            Close
-          </button>
-        </div>
-        <div className="mt-4">{children}</div>
-      </div>
+    <div>
+      <label className="field-label">{label}</label>
+      {children}
+      {error && <div className="field-error">{error}</div>}
     </div>
   );
 }
 
-function ConfirmModal({
-  state,
-  onCancel
-}: {
-  state: ConfirmState;
-  onCancel: () => void;
-}) {
-  return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onCancel}>
-      <div
-        className="glass w-full max-w-md rounded-2xl p-6"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h3 className="text-lg font-semibold">{state.title}</h3>
-        <p className="mt-2 text-sm text-haze">{state.message}</p>
-        <div className="mt-6 flex justify-end gap-2">
-          <button className="btn-secondary" onClick={onCancel}>
-            Cancel
-          </button>
-          <button
-            className={clsx(
-              "btn-primary",
-              state.tone === "danger" && "bg-rose-500 text-white hover:brightness-110"
-            )}
-            onClick={state.onConfirm}
-          >
-            {state.confirmLabel ?? "Confirm"}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-function Field({
-  label,
-  error,
-  children
-}: {
-  label: string;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block text-xs uppercase tracking-widest text-haze font-mono">
-      {label}
-      <div className="mt-2">{children}</div>
-      {error ? <div className="mt-1 text-[11px] text-rose-300 normal-case">{error}</div> : null}
-    </label>
-  );
+function useOnline() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+  return isOnline;
 }
 
 export default App;

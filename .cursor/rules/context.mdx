@@ -1,0 +1,65 @@
+---
+description: Project structure, build commands, and design system for Shard Launcher.
+globs: **/*
+---
+
+# Shard Launcher - Cursor Rules
+
+## Project Structure
+
+- `/src/` - Core Rust library (profile management, downloads, launching)
+- `/ui/` - Tauri 2 desktop app (React + TypeScript + Tailwind)
+- `/ui/src-tauri/` - Tauri Rust backend (commands bridge to core library)
+
+## Build Profiles (IMPORTANT)
+
+Development prioritizes fast compilation over optimization. Use the appropriate profile:
+
+| Profile | Command | Use Case |
+|---------|---------|----------|
+| `dev` | `cargo tauri dev` | Development, debugging (DEFAULT) |
+| `dev-release` | `cargo tauri build --profile dev-release` | Testing builds (~30s) |
+| `release` | `cargo tauri build --release` | Production only (~3-5min) |
+
+**Always use `cargo tauri dev` for development iteration.**
+**Never use `--release` unless explicitly building for production.**
+
+## Commands
+
+```bash
+# Development (use this for iteration)
+cd ui && cargo tauri dev
+
+# Frontend only (no Tauri)
+cd ui && bun run dev
+
+# Core library check
+cargo check
+
+# Test build (faster than release)
+cd ui && cargo tauri build --profile dev-release
+
+# Production build (slow, only when needed)
+cd ui && cargo tauri build --release
+```
+
+## Code Style
+
+- Rust: Follow standard Rust conventions, use `anyhow` for errors
+- TypeScript: Functional React components, TypeScript strict mode
+- CSS: Tailwind utilities + custom CSS in `styles.css`
+
+## Ignore Directories
+
+Never read or modify files in:
+- `**/target/`
+- `**/node_modules/`
+- `**/dist/`
+- `**/.next/`
+
+## UI Design System
+
+The UI uses macOS-inspired glassmorphism:
+- Transparent sidebar with `backdrop-filter: blur()`
+- Warm color palette defined in CSS `:root` variables
+- Accent colors: `--accent-primary` (cyan), `--accent-secondary` (amber)
