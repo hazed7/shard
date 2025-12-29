@@ -1,16 +1,14 @@
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
-
-use shard::accounts::{load_accounts, save_accounts, set_active};
+use shard::accounts::{load_accounts, remove_account, save_accounts, set_active};
 use shard::auth::request_device_code;
 use shard::config::{load_config, save_config};
 use shard::minecraft::{launch, prepare};
 use shard::ops::{finish_device_code_flow, parse_loader, resolve_input, resolve_launch_account};
 use shard::paths::Paths;
 use shard::profile::{
-    ContentRef, Loader, Runtime, clone_profile, create_profile, diff_profiles, list_profiles,
-    load_profile, remove_mod, remove_resourcepack, remove_shaderpack, save_profile, upsert_mod,
+    ContentRef, Runtime, clone_profile, create_profile, diff_profiles, list_profiles, load_profile,
+    remove_mod, remove_resourcepack, remove_shaderpack, save_profile, upsert_mod,
     upsert_resourcepack, upsert_shaderpack,
 };
 use shard::store::{ContentKind, store_content};
@@ -325,7 +323,7 @@ fn run() -> Result<()> {
                 if accounts.accounts.is_empty() {
                     bail!("no accounts configured");
                 }
-                if accounts::remove_account(&mut accounts, &id) {
+                if remove_account(&mut accounts, &id) {
                     save_accounts(&paths, &accounts)?;
                     println!("removed account {id}");
                 } else {
