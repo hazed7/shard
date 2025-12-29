@@ -603,20 +603,24 @@ fn extract_natives(path: &Path, dest: &Path, extract: Option<&Extract>) -> Resul
 
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).context("failed to read zip entry")?;
-        let name = entry.name();
-        if name.ends_with('/') {
+        let entry_name = entry.name().to_string();
+        let enclosed = match entry.enclosed_name() {
+            Some(name) => name.to_owned(),
+            None => continue,
+        };
+        if entry.is_dir() {
             continue;
         }
         if let Some(extract) = extract {
             if let Some(excludes) = &extract.exclude {
-                if excludes.iter().any(|prefix| name.starts_with(prefix)) {
+                if excludes.iter().any(|prefix| entry_name.starts_with(prefix)) {
                     continue;
                 }
             }
         }
 
         // Protect against Zip Slip: validate path doesn't escape destination
-        let out_path = dest.join(name);
+        let out_path = dest.join(&enclosed);
         let canonical_dest = dest
             .canonicalize()
             .with_context(|| format!("failed to canonicalize dest: {}", dest.display()))?;
@@ -633,7 +637,7 @@ fn extract_natives(path: &Path, dest: &Path, extract: Option<&Extract>) -> Resul
         if !canonical_out.starts_with(&canonical_dest) {
             bail!(
                 "zip entry '{}' would escape destination directory (Zip Slip attack)",
-                name
+                entry_name
             );
         }
         let mut out = fs::File::create(&out_path)
