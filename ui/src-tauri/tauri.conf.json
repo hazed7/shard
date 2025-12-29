@@ -39,9 +39,13 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon.png"],
-    "deepLinks": {
-      "schemes": ["shard"]
+    "icon": ["icons/icon.png"]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["shard"]
+      }
     }
   }
 }

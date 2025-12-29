@@ -1202,3 +1202,48 @@ a {
     transform: translateX(0);
   }
 }
+
+/* =============================================================================
+   ERROR BOUNDARY
+   ============================================================================= */
+.error-boundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  padding: 40px;
+  background: var(--bg-base);
+}
+
+.error-boundary-content {
+  text-align: center;
+  max-width: 400px;
+}
+
+.error-boundary-content h2 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+}
+
+.error-boundary-content p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 24px;
+  line-height: 1.6;
+}
+
+.error-boundary-details {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--accent-danger);
+  text-align: left;
+  overflow-x: auto;
+  margin-bottom: 24px;
+}
