@@ -7,5 +7,8 @@ export { Sidebar } from "./Sidebar";
 export { ProfileView } from "./ProfileView";
 export { AccountsView } from "./AccountsView";
 export { SettingsView } from "./SettingsView";
+export { SkinViewer } from "./SkinViewer";
+export { StoreView } from "./StoreView";
+export { LogsView } from "./LogsView";
 
 export * from "./modals";

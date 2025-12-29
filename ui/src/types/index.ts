@@ -79,7 +79,6 @@ export type ManifestVersion = {
 };
 
 export type ContentTab = "mods" | "resourcepacks" | "shaderpacks";
-export type SidebarView = "profiles" | "accounts" | "settings";
 
 export type ModalType =
   | "create"
@@ -88,7 +87,113 @@ export type ModalType =
   | "json"
   | "add-content"
   | "prepare"
-  | "device-code";
+  | "device-code"
+  | "account-details"
+  | "skin-upload"
+  | "logs"
+  | "store";
+
+export type SidebarView = "profiles" | "accounts" | "settings" | "store" | "logs";
+
+// Skin/Cape types
+export type Skin = {
+  id: string;
+  state: string;
+  url: string;
+  variant?: string | null;
+};
+
+export type Cape = {
+  id: string;
+  state: string;
+  url: string;
+  alias?: string | null;
+};
+
+export type AccountInfo = {
+  id: string;
+  name: string;
+  skins: Skin[];
+  capes: Cape[];
+  active_skin?: Skin | null;
+  active_cape?: Cape | null;
+  avatar_url: string;
+  body_url: string;
+};
+
+// Template types
+export type TemplateLoader = {
+  type: string;
+  version: string;
+};
+
+export type ContentSource =
+  | { type: "modrinth"; project: string }
+  | { type: "curseforge"; project_id: number }
+  | { type: "url"; url: string };
+
+export type TemplateContent = {
+  name: string;
+  source: ContentSource;
+  version?: string | null;
+  required: boolean;
+};
+
+export type Template = {
+  id: string;
+  name: string;
+  description: string;
+  mc_version: string;
+  loader?: TemplateLoader | null;
+  mods: TemplateContent[];
+  resourcepacks: TemplateContent[];
+  shaderpacks: TemplateContent[];
+};
+
+// Content store types
+export type StoreProject = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  icon_url?: string | null;
+  download_count: number;
+  source: "modrinth" | "curseforge";
+  categories: string[];
+  author: string;
+};
+
+export type StoreVersion = {
+  id: string;
+  name: string;
+  version_number: string;
+  game_versions: string[];
+  loaders: string[];
+  download_url: string;
+  file_name: string;
+  file_size: number;
+  published: string;
+};
+
+// Logs types
+export type LogLevel = "debug" | "info" | "warn" | "error" | "fatal" | "unknown";
+
+export type LogEntry = {
+  timestamp?: string | null;
+  level: LogLevel;
+  thread?: string | null;
+  message: string;
+  raw: string;
+  line_number: number;
+};
+
+export type LogFile = {
+  name: string;
+  path: string;
+  size: number;
+  modified: number;
+  is_current: boolean;
+};
 
 export type ConfirmState = {
   title: string;

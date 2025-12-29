@@ -1247,3 +1247,25 @@ a {
   overflow-x: auto;
   margin-bottom: 24px;
 }
+
+/* =============================================================================
+   SKIN VIEWER
+   ============================================================================= */
+.skin-viewer {
+  display: inline-block;
+}
+
+.skin-viewer-loading {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(124, 199, 255, 0.2);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

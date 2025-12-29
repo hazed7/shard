@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import clsx from "clsx";
+import { invoke } from "@tauri-apps/api/core";
 import { Modal } from "../Modal";
 import { Field } from "../Field";
 import { useAppStore } from "../../store";
-import type { ManifestVersion } from "../../types";
+import type { ManifestVersion, Template } from "../../types";
 
 interface CreateProfileModalProps {
   open: boolean;
@@ -19,10 +20,14 @@ export interface CreateProfileForm {
   java: string;
   memory: string;
   args: string;
+  templateId?: string | null;
 }
 
 export function CreateProfileModal({ open, onClose, onSubmit }: CreateProfileModalProps) {
-  const { mcVersions, mcVersionLoading, loaderVersions, loaderLoading, setMcVersions, setMcVersionLoading, setLoaderVersions, setLoaderLoading } = useAppStore();
+  const { mcVersions, mcVersionLoading, loaderVersions, loaderLoading, setMcVersions, setMcVersionLoading, setLoaderVersions, setLoaderLoading, notify } = useAppStore();
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [creationMode, setCreationMode] = useState<"blank" | "template">("blank");
 
   const [form, setForm] = useState<CreateProfileForm>({
     id: "",
@@ -44,6 +49,31 @@ export function CreateProfileModal({ open, onClose, onSubmit }: CreateProfileMod
     return mcVersions.find((entry) => entry.type === "release")?.id;
   }, [mcVersions]);
 
+  // Load templates
+  const loadTemplates = useCallback(async () => {
+    try {
+      const ids = await invoke<string[]>("list_templates_cmd");
+      const loaded: Template[] = [];
+      for (const id of ids) {
+        try {
+          const template = await invoke<Template>("load_template_cmd", { id });
+          loaded.push(template);
+        } catch {
+          // Skip invalid templates
+        }
+      }
+      setTemplates(loaded);
+    } catch (err) {
+      console.error("Failed to load templates:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      void loadTemplates();
+    }
+  }, [open, loadTemplates]);
+
   useEffect(() => {
     if (open && mcVersions.length === 0) {
       fetchMinecraftVersions();
@@ -58,10 +88,30 @@ export function CreateProfileModal({ open, onClose, onSubmit }: CreateProfileMod
 
   useEffect(() => {
     if (open) {
-      setForm({ id: "", mcVersion: "", loaderType: "", loaderVersion: "", java: "", memory: "", args: "" });
+      setForm({ id: "", mcVersion: "", loaderType: "", loaderVersion: "", java: "", memory: "", args: "", templateId: null });
       setErrors({});
+      setCreationMode("blank");
+      setSelectedTemplate(null);
     }
   }, [open]);
+
+  // Apply template values when selected
+  const handleSelectTemplate = (template: Template | null) => {
+    setSelectedTemplate(template);
+    if (template) {
+      setForm((prev) => ({
+        ...prev,
+        mcVersion: template.mc_version,
+        loaderType: template.loader?.type ?? "",
+        loaderVersion: template.loader?.version ?? "",
+        templateId: template.id,
+      }));
+      // Fetch loader versions if needed
+      if (template.loader?.type === "fabric" && loaderVersions.length === 0 && !loaderLoading) {
+        fetchLoaderVersions();
+      }
+    }
+  };
 
   const fetchMinecraftVersions = async () => {
     setMcVersionLoading(true);
@@ -116,6 +166,79 @@ export function CreateProfileModal({ open, onClose, onSubmit }: CreateProfileMod
   return (
     <Modal open={open} onClose={onClose} title="Create profile">
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Creation mode selector */}
+        <div className="content-tabs" style={{ marginBottom: 8 }}>
+          <button
+            className={clsx("content-tab", creationMode === "blank" && "active")}
+            onClick={() => {
+              setCreationMode("blank");
+              setSelectedTemplate(null);
+              setForm((prev) => ({ ...prev, templateId: null }));
+            }}
+          >
+            Blank Profile
+          </button>
+          <button
+            className={clsx("content-tab", creationMode === "template" && "active")}
+            onClick={() => setCreationMode("template")}
+          >
+            From Template
+            {templates.length > 0 && <span className="count">{templates.length}</span>}
+          </button>
+        </div>
+
+        {/* Template selector */}
+        {creationMode === "template" && (
+          <div style={{ marginBottom: 8 }}>
+            {templates.length === 0 ? (
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid var(--border-subtle)",
+                  borderRadius: 12,
+                  padding: 20,
+                  textAlign: "center",
+                }}
+              >
+                <p style={{ color: "var(--text-muted)", margin: 0, fontSize: 13 }}>
+                  No templates available. Create templates via CLI using <code style={{ fontSize: 11 }}>shard template</code>.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {templates.map((template) => (
+                  <div
+                    key={template.id}
+                    className="content-item"
+                    onClick={() => handleSelectTemplate(template)}
+                    style={{
+                      cursor: "pointer",
+                      background: selectedTemplate?.id === template.id ? "rgba(124, 199, 255, 0.1)" : undefined,
+                      borderColor: selectedTemplate?.id === template.id ? "rgba(124, 199, 255, 0.2)" : undefined,
+                    }}
+                  >
+                    <div className="content-item-info">
+                      <h5 style={{ margin: 0 }}>{template.name}</h5>
+                      <p style={{ margin: "4px 0 0", fontSize: 12 }}>
+                        {template.description}
+                      </p>
+                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
+                        MC {template.mc_version}
+                        {template.loader && ` • ${template.loader.type}`}
+                        {template.mods.length > 0 && ` • ${template.mods.length} mods`}
+                        {template.shaderpacks.length > 0 && ` • ${template.shaderpacks.length} shaders`}
+                      </p>
+                    </div>
+                    {selectedTemplate?.id === template.id && (
+                      <div style={{ color: "var(--accent-primary)", fontSize: 18 }}>✓</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <Field label="Profile ID" error={errors.id}>
           <input
             className={clsx("input", errors.id && "input-error")}

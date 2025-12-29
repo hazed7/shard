@@ -85,6 +85,25 @@ export function Sidebar({
         </button>
       </div>
 
+      <div className="sidebar-divider" />
+
+      <div className="sidebar-section">
+        <button
+          className={clsx("sidebar-item", sidebarView === "store" && "active")}
+          onClick={() => setSidebarView("store")}
+          data-tauri-drag-region="false"
+        >
+          Content Store
+        </button>
+        <button
+          className={clsx("sidebar-item", sidebarView === "logs" && "active")}
+          onClick={() => setSidebarView("logs")}
+          data-tauri-drag-region="false"
+        >
+          Logs
+        </button>
+      </div>
+
       <div className="sidebar-footer">
         <div className="sidebar-header" style={{ padding: "0 0 8px" }}>Account</div>
         {activeAccount ? (

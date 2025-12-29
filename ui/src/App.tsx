@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import clsx from "clsx";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -14,6 +14,8 @@ import {
   ProfileView,
   AccountsView,
   SettingsView,
+  StoreView,
+  LogsView,
   Toast,
   ConfirmDialog,
   CreateProfileModal,
@@ -23,6 +25,7 @@ import {
   DeviceCodeModal,
   LaunchPlanModal,
   ProfileJsonModal,
+  AccountDetailsModal,
 } from "./components";
 import type { CreateProfileForm } from "./components";
 
@@ -72,6 +75,9 @@ function App() {
 
   // Content modal state
   const contentKind = useAppStore((s) => s.activeTab);
+
+  // Account details modal state
+  const [selectedAccountForDetails, setSelectedAccountForDetails] = useState<string | null>(null);
 
   // Initial load
   useEffect(() => {
@@ -321,6 +327,11 @@ function App() {
     setActiveModal("add-content");
   }, [setActiveModal]);
 
+  const handleViewAccountDetails = useCallback((account: Account) => {
+    setSelectedAccountForDetails(account.uuid);
+    setActiveModal("account-details");
+  }, [setActiveModal]);
+
   return (
     <ErrorBoundary>
       <div className={clsx("app-root", debugDrag && "debug-drag")}>
@@ -380,12 +391,17 @@ function App() {
                     onSetActive={handleSetActiveAccount}
                     onRemove={handleRemoveAccount}
                     onAdd={() => setActiveModal("device-code")}
+                    onViewDetails={handleViewAccountDetails}
                   />
                 )}
 
                 {sidebarView === "settings" && (
                   <SettingsView onSave={handleSaveConfig} />
                 )}
+
+                {sidebarView === "store" && <StoreView />}
+
+                {sidebarView === "logs" && <LogsView />}
               </ErrorBoundary>
             </div>
           </main>
@@ -442,6 +458,15 @@ function App() {
           open={activeModal === "json"}
           profile={profile}
           onClose={() => setActiveModal(null)}
+        />
+
+        <AccountDetailsModal
+          open={activeModal === "account-details"}
+          accountId={selectedAccountForDetails}
+          onClose={() => {
+            setActiveModal(null);
+            setSelectedAccountForDetails(null);
+          }}
         />
 
         {confirmState && (

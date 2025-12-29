@@ -4,17 +4,18 @@ import clsx from "clsx";
 interface ModalProps {
   open: boolean;
   onClose: () => void;
-  title: string;
+  title?: string;
   large?: boolean;
+  className?: string;
   children: React.ReactNode;
 }
 
-export function Modal({ open, onClose, title, large, children }: ModalProps) {
+export function Modal({ open, onClose, title, large, className, children }: ModalProps) {
   if (!open) return null;
   return ReactDOM.createPortal(
     <div className="modal-backdrop" onClick={onClose}>
-      <div className={clsx("modal", large && "modal-lg")} onClick={(e) => e.stopPropagation()}>
-        <h3 className="modal-title">{title}</h3>
+      <div className={clsx("modal", large && "modal-lg", className)} onClick={(e) => e.stopPropagation()}>
+        {title && <h3 className="modal-title">{title}</h3>}
         {children}
       </div>
     </div>,
