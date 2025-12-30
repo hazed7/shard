@@ -22,7 +22,6 @@ import {
   DeviceCodeModal,
   LaunchPlanModal,
   ProfileJsonModal,
-  EditVersionModal,
 } from "./components";
 import { formatContentName } from "./utils";
 import type { CreateProfileForm } from "./components";
@@ -353,8 +352,6 @@ function App() {
                     onShowJson={() => setActiveModal("json")}
                     onAddContent={openAddContentModal}
                     onRemoveContent={handleRemoveContent}
-                    onEditVersion={() => setActiveModal("edit-version")}
-                    onEditLoader={() => setActiveModal("edit-loader")}
                   />
                 )}
 
@@ -449,18 +446,6 @@ function App() {
           open={activeModal === "json"}
           profile={profile}
           onClose={() => setActiveModal(null)}
-        />
-
-        <EditVersionModal
-          open={activeModal === "edit-version"}
-          onClose={() => setActiveModal(null)}
-          mode="version"
-        />
-
-        <EditVersionModal
-          open={activeModal === "edit-loader"}
-          onClose={() => setActiveModal(null)}
-          mode="loader"
         />
 
         {confirmState && (
