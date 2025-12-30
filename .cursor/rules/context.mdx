@@ -7,9 +7,32 @@ globs: **/*
 
 ## Project Structure
 
-- `/src/` - Core Rust library (profile management, downloads, launching)
-- `/ui/` - Tauri 2 desktop app (React + TypeScript + Tailwind)
+- `/src/` - Core Rust library (profile management, store, mod APIs, launching)
+- `/ui/` - Tauri 2 desktop app (React + TypeScript + custom CSS)
 - `/ui/src-tauri/` - Tauri Rust backend (commands bridge to core library)
+
+## Key Modules
+
+### Rust (Core Library)
+- `profile.rs` - Profile management
+- `template.rs` - Profile templates (Fabric, Forge, etc.)
+- `store.rs`, `content_store.rs`, `library.rs` - Content-addressed storage
+- `modrinth.rs`, `curseforge.rs` - Mod platform APIs
+- `minecraft.rs` - Version/library/asset downloads
+- `ops.rs` - Launch operations
+- `auth.rs`, `accounts.rs` - Microsoft authentication
+- `skin.rs` - Skin management
+- `java.rs` - Java runtime detection
+
+### UI Components
+- `Sidebar.tsx` - Navigation, profile selector with drag-and-drop folders
+- `ProfileView.tsx` - Profile details, content management, launch
+- `StoreView.tsx` - Modrinth/CurseForge mod browser
+- `LibraryView.tsx` - Global content library
+- `AccountView.tsx` - Account details, skin management
+- `LogsView.tsx` - Live game log viewer
+- `SkinViewer.tsx` - 3D skin renderer
+- `PlatformIcon.tsx` - Platform icons (Modrinth/CurseForge/Local)
 
 ## Build Profiles (IMPORTANT)
 
@@ -47,7 +70,7 @@ cd ui && cargo tauri build --release
 
 - Rust: Follow standard Rust conventions, use `anyhow` for errors
 - TypeScript: Functional React components, TypeScript strict mode
-- CSS: Tailwind utilities + custom CSS in `styles.css`
+- CSS: Custom CSS in `styles.css` with CSS variables (not Tailwind)
 
 ## Ignore Directories
 
@@ -60,6 +83,13 @@ Never read or modify files in:
 ## UI Design System
 
 The UI uses macOS-inspired glassmorphism:
-- Transparent sidebar with `backdrop-filter: blur()`
-- Warm color palette defined in CSS `:root` variables
+- Warm dark palette defined in CSS `:root` variables
+- Glassmorphism with `backdrop-filter: blur()` on elevated surfaces
 - Accent colors: `--accent-primary` (cyan), `--accent-secondary` (amber)
+- Border-radius scale: 4px (tiny), 6px (small), 8px (medium), 10px (standard), 12px (large)
+- Text colors: `--text-primary`, `--text-secondary`, `--text-muted`
+- Geist Sans/Mono fonts
+
+## Sync Note
+
+Keep aligned with `.claude/CLAUDE.md` and `.codex/CODEX.md`.

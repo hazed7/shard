@@ -391,7 +391,7 @@ export function LibraryView() {
               flexShrink: 0,
               background: "rgba(255, 255, 255, 0.02)",
               border: "1px solid var(--border-subtle)",
-              borderRadius: 16,
+              borderRadius: 12,
               padding: 20,
               alignSelf: "flex-start",
             }}

@@ -1340,6 +1340,15 @@ pub fn library_add_to_profile_cmd(profile_id: String, item_id: i64) -> Result<Pr
 // ============================================================================
 
 #[tauri::command]
+pub fn get_data_path_cmd() -> Result<String, String> {
+    let paths = load_paths()?;
+    // Derive the base path from the profiles directory (profiles is at base/profiles)
+    let base = paths.profiles.parent()
+        .ok_or_else(|| "could not determine data path".to_string())?;
+    Ok(base.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 pub fn get_storage_stats_cmd() -> Result<StorageStats, String> {
     let paths = load_paths()?;
     get_storage_stats(&paths).map_err(|e| e.to_string())

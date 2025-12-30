@@ -82,6 +82,7 @@ pub fn run() {
             commands::library_set_item_tags_cmd,
             commands::library_add_to_profile_cmd,
             // Settings and storage commands
+            commands::get_data_path_cmd,
             commands::get_storage_stats_cmd,
             commands::get_auto_update_enabled_cmd,
             commands::set_auto_update_enabled_cmd,

@@ -48,6 +48,7 @@ export function StoreView() {
   const [versions, setVersions] = useState<StoreVersion[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [installing, setInstalling] = useState<string | null>(null);
+  const [quickInstalling, setQuickInstalling] = useState<string | null>(null);
   const [, forceUpdate] = useState(0);
 
   // Load popular content for current category
@@ -160,6 +161,47 @@ export function StoreView() {
       setInstalling(null);
     }
   }, [selectedProfileId, selectedProject, category, loadProfile, notify]);
+
+  // Quick install - fetch latest version and install directly
+  const handleQuickInstall = useCallback(async (project: StoreProject, e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't select the project
+    if (!selectedProfileId) return;
+
+    const projectKey = `${project.platform}-${project.id}`;
+    setQuickInstalling(projectKey);
+    try {
+      // Fetch versions for this project
+      const versions = await invoke<StoreVersion[]>("store_get_versions_cmd", {
+        project_id: project.id,
+        platform: project.platform,
+        game_version: profile?.mcVersion ?? null,
+        loader: profile?.loader?.type ?? null,
+        profile_id: selectedProfileId,
+      });
+
+      if (versions.length === 0) {
+        notify("No compatible version", `No compatible version found for ${project.name}`);
+        return;
+      }
+
+      // Install the first (latest) version
+      const latestVersion = versions[0];
+      const input = {
+        profile_id: selectedProfileId,
+        platform: project.platform,
+        project_id: project.id,
+        version_id: latestVersion.id,
+        content_type: CATEGORY_TO_CONTENT_TYPE[category],
+      };
+      await invoke("store_install_cmd", { input });
+      await loadProfile(selectedProfileId);
+      notify("Installed", `${project.name} v${latestVersion.version}`);
+    } catch (err) {
+      notify("Install failed", String(err));
+    } finally {
+      setQuickInstalling(null);
+    }
+  }, [selectedProfileId, profile, category, loadProfile, notify]);
 
   return (
     <div className="view-transition">
@@ -325,6 +367,18 @@ export function StoreView() {
                   </div>
                 </div>
               </div>
+              {/* Quick install button */}
+              {selectedProfileId && (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={(e) => handleQuickInstall(project, e)}
+                  disabled={quickInstalling === `${project.platform}-${project.id}`}
+                  style={{ flexShrink: 0 }}
+                  title="Install latest compatible version"
+                >
+                  {quickInstalling === `${project.platform}-${project.id}` ? "..." : "Install"}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -337,7 +391,7 @@ export function StoreView() {
               flexShrink: 0,
               background: "rgba(255, 255, 255, 0.02)",
               border: "1px solid var(--border-subtle)",
-              borderRadius: 16,
+              borderRadius: 12,
               padding: 20,
               alignSelf: "flex-start",
               maxHeight: 500,
