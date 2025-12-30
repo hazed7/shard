@@ -22,6 +22,7 @@ import {
   DeviceCodeModal,
   LaunchPlanModal,
   ProfileJsonModal,
+  EditVersionModal,
 } from "./components";
 import { formatContentName } from "./utils";
 import type { CreateProfileForm } from "./components";
@@ -30,6 +31,7 @@ import type { CreateProfileForm } from "./components";
 const StoreView = lazy(() => import("./components/StoreView").then(m => ({ default: m.StoreView })));
 const LogsView = lazy(() => import("./components/LogsView").then(m => ({ default: m.LogsView })));
 const LibraryView = lazy(() => import("./components/LibraryView").then(m => ({ default: m.LibraryView })));
+const SettingsView = lazy(() => import("./components/SettingsView").then(m => ({ default: m.SettingsView })));
 
 const NO_DRAG_SELECTOR = [
   "button",
@@ -243,8 +245,8 @@ function App() {
     }
     await runAction(async () => {
       await invoke("launch_profile_cmd", {
-        profile_id: selectedProfileId,
-        account_id: activeAccount.uuid,
+        profileId: selectedProfileId,
+        accountId: activeAccount.uuid,
       });
       setLaunchStatus({ stage: "queued" });
     });
@@ -351,6 +353,8 @@ function App() {
                     onShowJson={() => setActiveModal("json")}
                     onAddContent={openAddContentModal}
                     onRemoveContent={handleRemoveContent}
+                    onEditVersion={() => setActiveModal("edit-version")}
+                    onEditLoader={() => setActiveModal("edit-loader")}
                   />
                 )}
 
@@ -381,6 +385,12 @@ function App() {
                 {sidebarView === "library" && (
                   <Suspense fallback={<div className="loading-view">Loading library...</div>}>
                     <LibraryView />
+                  </Suspense>
+                )}
+
+                {sidebarView === "settings" && (
+                  <Suspense fallback={<div className="loading-view">Loading settings...</div>}>
+                    <SettingsView />
                   </Suspense>
                 )}
               </ErrorBoundary>
@@ -439,6 +449,18 @@ function App() {
           open={activeModal === "json"}
           profile={profile}
           onClose={() => setActiveModal(null)}
+        />
+
+        <EditVersionModal
+          open={activeModal === "edit-version"}
+          onClose={() => setActiveModal(null)}
+          mode="version"
+        />
+
+        <EditVersionModal
+          open={activeModal === "edit-loader"}
+          onClose={() => setActiveModal(null)}
+          mode="loader"
         />
 
         {confirmState && (

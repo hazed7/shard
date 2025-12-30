@@ -183,6 +183,32 @@ pub fn rename_profile_cmd(id: String, new_id: String) -> Result<Profile, String>
 }
 
 #[tauri::command]
+pub fn update_profile_version_cmd(
+    id: String,
+    mc_version: String,
+    loader_type: Option<String>,
+    loader_version: Option<String>,
+) -> Result<Profile, String> {
+    let paths = load_paths()?;
+    let mut profile = load_profile(&paths, &id).map_err(|e| e.to_string())?;
+
+    // Update MC version
+    profile.mc_version = mc_version;
+
+    // Update loader
+    profile.loader = match (loader_type, loader_version) {
+        (Some(lt), Some(lv)) if !lt.is_empty() && !lv.is_empty() => Some(Loader {
+            loader_type: lt,
+            version: lv,
+        }),
+        _ => None,
+    };
+
+    save_profile(&paths, &profile).map_err(|e| e.to_string())?;
+    Ok(profile)
+}
+
+#[tauri::command]
 pub fn diff_profiles_cmd(a: String, b: String) -> Result<DiffResult, String> {
     let paths = load_paths()?;
     let profile_a = load_profile(&paths, &a).map_err(|e| e.to_string())?;

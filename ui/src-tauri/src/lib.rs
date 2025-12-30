@@ -13,6 +13,7 @@ pub fn run() {
             commands::clone_profile_cmd,
             commands::delete_profile_cmd,
             commands::rename_profile_cmd,
+            commands::update_profile_version_cmd,
             commands::diff_profiles_cmd,
             commands::add_mod_cmd,
             commands::add_resourcepack_cmd,
@@ -70,6 +71,7 @@ pub fn run() {
             commands::library_add_item_cmd,
             commands::library_update_item_cmd,
             commands::library_delete_item_cmd,
+            commands::library_get_item_path_cmd,
             commands::library_import_file_cmd,
             commands::library_import_folder_cmd,
             commands::library_get_stats_cmd,
@@ -78,7 +80,16 @@ pub fn run() {
             commands::library_create_tag_cmd,
             commands::library_delete_tag_cmd,
             commands::library_set_item_tags_cmd,
-            commands::library_add_to_profile_cmd
+            commands::library_add_to_profile_cmd,
+            // Settings and storage commands
+            commands::get_storage_stats_cmd,
+            commands::get_auto_update_enabled_cmd,
+            commands::set_auto_update_enabled_cmd,
+            // Update checking commands
+            commands::check_all_updates_cmd,
+            commands::check_profile_updates_cmd,
+            commands::apply_content_update_cmd,
+            commands::set_content_pinned_cmd
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

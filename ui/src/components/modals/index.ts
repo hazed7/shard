@@ -7,3 +7,4 @@ export { DeviceCodeModal } from "./DeviceCodeModal";
 export { LaunchPlanModal } from "./LaunchPlanModal";
 export { ProfileJsonModal } from "./ProfileJsonModal";
 export { AccountDetailsModal } from "./AccountDetailsModal";
+export { EditVersionModal } from "./EditVersionModal";
