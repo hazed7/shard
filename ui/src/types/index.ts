@@ -116,15 +116,21 @@ export type Cape = {
   alias?: string | null;
 };
 
-export type AccountInfo = {
+export type MinecraftProfile = {
   id: string;
   name: string;
   skins: Skin[];
   capes: Cape[];
-  active_skin?: Skin | null;
-  active_cape?: Cape | null;
+};
+
+export type AccountInfo = {
+  uuid: string;
+  username: string;
   avatar_url: string;
   body_url: string;
+  skin_url: string;
+  cape_url: string;
+  profile?: MinecraftProfile | null;
 };
 
 // Template types

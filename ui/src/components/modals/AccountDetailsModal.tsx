@@ -29,8 +29,9 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
       const data = await invoke<AccountInfo>("get_account_info_cmd", { id: accountId });
       setInfo(data);
       // Set variant from current skin
-      if (data.active_skin?.variant) {
-        setSkinVariant(data.active_skin.variant as "classic" | "slim");
+      const activeSkin = data.profile?.skins?.find(s => s.state === "ACTIVE");
+      if (activeSkin?.variant) {
+        setSkinVariant(activeSkin.variant as "classic" | "slim");
       }
     } catch (err) {
       setError(String(err));
@@ -135,7 +136,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
 
   return (
     <Modal open={isOpen} onClose={onClose} className="modal-lg">
-      <h2 className="modal-title">{info?.name ?? "Account"}</h2>
+      <h2 className="modal-title">{info?.username ?? "Account"}</h2>
 
       {loading && (
         <div style={{ textAlign: "center", padding: 40 }}>
@@ -163,8 +164,8 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
           {/* 3D Skin Viewer */}
           <div style={{ flexShrink: 0 }}>
             <SkinViewer
-              skinUrl={info.active_skin?.url ?? `https://crafatar.com/skins/${info.id}?overlay`}
-              capeUrl={info.active_cape?.url}
+              skinUrl={info.skin_url}
+              capeUrl={info.profile?.capes?.find(c => c.state === "ACTIVE")?.url}
               width={200}
               height={320}
               animation="idle"
@@ -186,8 +187,8 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
                 onClick={() => setTab("cape")}
               >
                 Capes
-                {info.capes.length > 0 && (
-                  <span className="count">{info.capes.length}</span>
+                {(info.profile?.capes?.length ?? 0) > 0 && (
+                  <span className="count">{info.profile?.capes?.length}</span>
                 )}
               </button>
             </div>
@@ -271,7 +272,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
 
             {tab === "cape" && (
               <div>
-                {info.capes.length === 0 ? (
+                {(info.profile?.capes?.length ?? 0) === 0 ? (
                   <div
                     style={{
                       textAlign: "center",
@@ -286,7 +287,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {info.capes.map((cape: Cape) => (
+                    {(info.profile?.capes ?? []).map((cape: Cape) => (
                       <div
                         key={cape.id}
                         className="content-item"
