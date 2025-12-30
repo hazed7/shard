@@ -198,7 +198,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
                 <Field label="Skin Variant">
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
-                      className={`btn-secondary btn-sm ${skinVariant === "classic" ? "active" : ""}`}
+                      className={`btn btn-secondary btn-sm ${skinVariant === "classic" ? "active" : ""}`}
                       onClick={() => setSkinVariant("classic")}
                       style={{
                         background: skinVariant === "classic" ? "rgba(124, 199, 255, 0.15)" : undefined,
@@ -208,7 +208,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
                       Classic (Steve)
                     </button>
                     <button
-                      className={`btn-secondary btn-sm ${skinVariant === "slim" ? "active" : ""}`}
+                      className={`btn btn-secondary btn-sm ${skinVariant === "slim" ? "active" : ""}`}
                       onClick={() => setSkinVariant("slim")}
                       style={{
                         background: skinVariant === "slim" ? "rgba(124, 199, 255, 0.15)" : undefined,
@@ -223,7 +223,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
                 {/* Upload skin */}
                 <div style={{ marginTop: 16 }}>
                   <button
-                    className="btn-primary"
+                    className="btn btn-primary"
                     onClick={handleUploadSkin}
                     disabled={uploading}
                     style={{ width: "100%" }}
@@ -245,7 +245,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
                         style={{ flex: 1 }}
                       />
                       <button
-                        className="btn-secondary"
+                        className="btn btn-secondary"
                         onClick={handleSetSkinUrl}
                         disabled={!skinUrl.trim() || uploading}
                       >
@@ -258,7 +258,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
                 {/* Reset skin */}
                 <div style={{ marginTop: 24 }}>
                   <button
-                    className="btn-ghost"
+                    className="btn btn-ghost"
                     onClick={handleResetSkin}
                     disabled={uploading}
                     style={{ color: "var(--text-muted)" }}
@@ -310,7 +310,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
                         <div className="content-item-actions" style={{ opacity: 1 }}>
                           {cape.state === "ACTIVE" ? (
                             <button
-                              className="btn-ghost btn-sm"
+                              className="btn btn-ghost btn-sm"
                               onClick={handleHideCape}
                               disabled={uploading}
                             >
@@ -318,7 +318,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
                             </button>
                           ) : (
                             <button
-                              className="btn-secondary btn-sm"
+                              className="btn btn-secondary btn-sm"
                               onClick={() => handleSetCape(cape.id)}
                               disabled={uploading}
                             >
@@ -337,7 +337,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
       )}
 
       <div className="modal-footer">
-        <button className="btn-secondary" onClick={onClose}>
+        <button className="btn btn-secondary" onClick={onClose}>
           Close
         </button>
       </div>

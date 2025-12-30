@@ -41,7 +41,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
               </pre>
             )}
             <button
-              className="btn-primary"
+              className="btn btn-primary"
               onClick={() => {
                 this.setState({ hasError: false, error: null });
                 window.location.reload();

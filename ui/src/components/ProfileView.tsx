@@ -131,17 +131,17 @@ export function ProfileView({
               <option value="">No accounts</option>
             )}
           </select>
-          <button className="btn-primary" onClick={onLaunch} disabled={!activeAccount || isWorking}>
+          <button className="btn btn-primary" onClick={onLaunch} disabled={!activeAccount || isWorking}>
             Launch
           </button>
         </div>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <button className="btn-ghost btn-sm" onClick={onOpenInstance}>Open folder</button>
-        <button className="btn-ghost btn-sm" onClick={onCopyCommand}>Copy CLI command</button>
-        <button className="btn-ghost btn-sm" onClick={onPrepare}>View launch plan</button>
-        <button className="btn-ghost btn-sm" onClick={onShowJson}>View JSON</button>
+        <button className="btn btn-ghost btn-sm" onClick={onOpenInstance}>Open folder</button>
+        <button className="btn btn-ghost btn-sm" onClick={onCopyCommand}>Copy CLI command</button>
+        <button className="btn btn-ghost btn-sm" onClick={onPrepare}>View launch plan</button>
+        <button className="btn btn-ghost btn-sm" onClick={onShowJson}>View JSON</button>
       </div>
 
       <div className="section-header" style={{ marginTop: 40 }}>
@@ -165,7 +165,7 @@ export function ProfileView({
         <div className="empty-state">
           <h3>No {getContentTypeLabelPlural(activeTab)} yet</h3>
           <p>Add your first one to get started.</p>
-          <button className="btn-secondary btn-sm" onClick={() => onAddContent(activeTab)}>Add {getContentTypeLabel(activeTab)}</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onAddContent(activeTab)}>Add {getContentTypeLabel(activeTab)}</button>
         </div>
       ) : (
         <div>
@@ -182,7 +182,7 @@ export function ProfileView({
                 </p>
               </div>
               <div className="content-item-actions">
-                <button className="btn-ghost btn-sm" onClick={() => onRemoveContent(item)}>Remove</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => onRemoveContent(item)}>Remove</button>
               </div>
             </div>
           ))}

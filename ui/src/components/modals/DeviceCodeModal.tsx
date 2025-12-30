@@ -60,7 +60,7 @@ export function DeviceCodeModal({ open, onClose, onSuccess }: DeviceCodeModalPro
             <p style={{ margin: 0, fontSize: 14, color: "rgba(255,255,255,0.6)" }}>
               Sign in with your Microsoft account to play Minecraft.
             </p>
-            <button className="btn-primary" onClick={handleRequestCode}>Get sign-in code</button>
+            <button className="btn btn-primary" onClick={handleRequestCode}>Get sign-in code</button>
           </>
         ) : (
           <>
@@ -70,10 +70,10 @@ export function DeviceCodeModal({ open, onClose, onSuccess }: DeviceCodeModalPro
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 8 }}>{deviceCode.verification_uri}</div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn-secondary" style={{ flex: 1 }} onClick={() => openUrl(deviceCode.verification_uri)}>Open browser</button>
-              <button className="btn-secondary" style={{ flex: 1 }} onClick={() => navigator.clipboard.writeText(deviceCode.user_code)}>Copy code</button>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => openUrl(deviceCode.verification_uri)}>Open browser</button>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => navigator.clipboard.writeText(deviceCode.user_code)}>Copy code</button>
             </div>
-            <button className="btn-primary" onClick={handleFinish} disabled={pending}>
+            <button className="btn btn-primary" onClick={handleFinish} disabled={pending}>
               {pending ? "Waiting…" : "I've signed in"}
             </button>
           </>

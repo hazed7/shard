@@ -45,7 +45,7 @@ export function SettingsView({ onSave }: SettingsViewProps) {
       </div>
 
       <div style={{ marginTop: 24 }}>
-        <button className="btn-primary" onClick={onSave}>Save settings</button>
+        <button className="btn btn-primary" onClick={onSave}>Save settings</button>
       </div>
     </div>
   );

@@ -135,7 +135,7 @@ export function StoreView() {
           style={{ flex: 1 }}
         />
         <button
-          className="btn-primary"
+          className="btn btn-primary"
           onClick={handleSearch}
           disabled={loading || !query.trim()}
         >
@@ -310,7 +310,7 @@ export function StoreView() {
                         </div>
                       </div>
                       <button
-                        className="btn-primary btn-sm"
+                        className="btn btn-primary btn-sm"
                         onClick={() => handleInstall(version)}
                         disabled={!selectedProfileId || installing === version.id}
                       >

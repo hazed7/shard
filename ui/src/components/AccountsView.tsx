@@ -71,9 +71,9 @@ export function AccountsView({ onSetActive, onRemove, onAdd, onViewDetails }: Ac
             {accounts.active === account.uuid ? (
               <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Active</span>
             ) : (
-              <button className="btn-secondary btn-sm" onClick={() => onSetActive(account.uuid)}>Use</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => onSetActive(account.uuid)}>Use</button>
             )}
-            <button className="btn-ghost btn-sm" onClick={() => onRemove(account)}>Remove</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => onRemove(account)}>Remove</button>
           </div>
         </div>
       ))}
@@ -86,7 +86,7 @@ export function AccountsView({ onSetActive, onRemove, onAdd, onViewDetails }: Ac
       )}
 
       <div style={{ marginTop: 24 }}>
-        <button className="btn-primary" onClick={onAdd}>Add account</button>
+        <button className="btn btn-primary" onClick={onAdd}>Add account</button>
       </div>
     </div>
   );

@@ -384,7 +384,7 @@ function App() {
                   <div className="empty-state">
                     <h3>No profile selected</h3>
                     <p>Create your first profile to start launching Minecraft.</p>
-                    <button className="btn-primary" onClick={() => setActiveModal("create")}>Create profile</button>
+                    <button className="btn btn-primary" onClick={() => setActiveModal("create")}>Create profile</button>
                   </div>
                 )}
 

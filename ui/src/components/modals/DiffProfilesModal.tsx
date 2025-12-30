@@ -57,7 +57,7 @@ export function DiffProfilesModal({ open, onClose }: DiffProfilesModalProps) {
             </select>
           </Field>
         </div>
-        <button className="btn-primary" onClick={handleCompare}>Compare</button>
+        <button className="btn btn-primary" onClick={handleCompare}>Compare</button>
         {result && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginTop: 8 }}>
             <div>

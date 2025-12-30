@@ -49,7 +49,7 @@ export function AddContentModal({ open, kind, onClose, onSubmit }: AddContentMod
   return (
     <Modal open={open} onClose={onClose} title={`Add ${getContentTypeLabel(kind)}`}>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <button className="btn-secondary" onClick={handleFilePick}>Choose file…</button>
+        <button className="btn btn-secondary" onClick={handleFilePick}>Choose file…</button>
         {form.input && <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "rgba(255,255,255,0.6)", wordBreak: "break-all" }}>{form.input}</div>}
         <Field label="Or paste a URL" error={errors.input}>
           <input className={clsx("input", errors.input && "input-error")} value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://modrinth.com/…" />
