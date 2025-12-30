@@ -540,8 +540,8 @@ export function SettingsView() {
                     <path d="M24 28V16M24 28l10-6M24 28l-10-6" stroke="white" strokeWidth="2.5" strokeLinejoin="round" />
                     <defs>
                       <linearGradient id="about-gradient" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
-                        <stop stopColor="#7cc7ff" />
-                        <stop offset="1" stopColor="#5b9dd9" />
+                        <stop stopColor="#f0bc6f" />
+                        <stop offset="1" stopColor="#e8a855" />
                       </linearGradient>
                     </defs>
                   </svg>

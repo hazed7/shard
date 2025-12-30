@@ -42,7 +42,7 @@ export function AccountsView({ onSetActive, onRemove, onAdd, onViewDetails }: Ac
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "scale(1.05)";
-                e.currentTarget.style.boxShadow = "0 4px 20px rgba(124, 199, 255, 0.3)";
+                e.currentTarget.style.boxShadow = "0 4px 20px rgba(232, 168, 85, 0.3)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "scale(1)";

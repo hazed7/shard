@@ -107,6 +107,8 @@ shard shaderpack add <profile> <file|url>
 shard shaderpack remove <profile> <name|hash>
 shard shaderpack list <profile>
 
+shard modpack import <path> [--id <profile-id>]
+
 shard account add
 shard account list
 shard account use <uuid|username>

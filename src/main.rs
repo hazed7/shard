@@ -12,6 +12,7 @@ use shard::logs::{
     read_log_tail, search_logs, watch_log, LogLevel,
 };
 use shard::minecraft::{launch, prepare};
+use shard::modpack::import_mrpack;
 use shard::ops::{finish_device_code_flow, parse_loader, resolve_input, resolve_launch_account};
 use shard::paths::Paths;
 use shard::profile::{
@@ -86,6 +87,11 @@ enum Command {
     Library {
         #[command(subcommand)]
         command: LibraryCommand,
+    },
+    /// Modpack management
+    Modpack {
+        #[command(subcommand)]
+        command: ModpackCommand,
     },
     /// Configuration
     Config {
@@ -172,6 +178,18 @@ enum PackCommand {
     Remove { profile: String, target: String },
     /// List packs in a profile
     List { profile: String },
+}
+
+#[derive(Subcommand, Debug)]
+enum ModpackCommand {
+    /// Import a Modrinth .mrpack into a new profile
+    Import {
+        /// Path to .mrpack file
+        path: PathBuf,
+        /// Optional profile id (defaults to pack name)
+        #[arg(long)]
+        id: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -664,6 +682,7 @@ fn run() -> Result<()> {
                     platform: None, // CLI imports are local
                     project_id: None,
                     version_id: None,
+                    enabled: true,
                     pinned: false,
                 };
                 let changed = upsert_mod(&mut profile_data, mod_ref);
@@ -705,6 +724,7 @@ fn run() -> Result<()> {
         Command::Store { command } => handle_store_command(&paths, command)?,
         Command::Logs { command } => handle_logs_command(&paths, command)?,
         Command::Library { command } => handle_library_command(&paths, command)?,
+        Command::Modpack { command } => handle_modpack_command(&paths, command)?,
         Command::Config { command } => match command {
             ConfigCommand::Show => {
                 let config = load_config(&paths)?;
@@ -774,6 +794,7 @@ fn handle_pack_command(paths: &Paths, kind: ContentKind, command: PackCommand) -
                 platform: None, // CLI imports are local
                 project_id: None,
                 version_id: None,
+                enabled: true,
                 pinned: false,
             };
             let changed = match kind {
@@ -1496,6 +1517,7 @@ fn create_profile_from_template(
                                     platform: None,
                                     project_id: None,
                                     version_id: None,
+                                    enabled: true,
                                     pinned: false,
                                 };
                                 upsert_mod(&mut profile, content_ref);
@@ -1559,6 +1581,7 @@ fn create_profile_from_template(
                                     platform: None,
                                     project_id: None,
                                     version_id: None,
+                                    enabled: true,
                                     pinned: false,
                                 };
                                 upsert_shaderpack(&mut profile, content_ref);
@@ -1617,6 +1640,7 @@ fn create_profile_from_template(
                                     platform: None,
                                     project_id: None,
                                     version_id: None,
+                                    enabled: true,
                                     pinned: false,
                                 };
                                 upsert_resourcepack(&mut profile, content_ref);
@@ -1850,6 +1874,16 @@ fn handle_library_command(paths: &Paths, command: LibraryCommand) -> Result<()> 
         LibraryCommand::Tag { command } => handle_tag_command(&library, command)?,
     }
 
+    Ok(())
+}
+
+fn handle_modpack_command(paths: &Paths, command: ModpackCommand) -> Result<()> {
+    match command {
+        ModpackCommand::Import { path, id } => {
+            let profile = import_mrpack(paths, &path, id.as_deref())?;
+            println!("imported modpack into profile {}", profile.id);
+        }
+    }
     Ok(())
 }
 

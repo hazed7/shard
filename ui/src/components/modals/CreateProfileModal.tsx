@@ -286,7 +286,7 @@ export function CreateProfileModal({ open, onClose, onSubmit }: CreateProfileMod
         }
 
         .template-item.selected {
-          background: rgba(124, 199, 255, 0.06);
+          background: rgba(232, 168, 85, 0.06);
         }
 
         .template-item-radio {

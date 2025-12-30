@@ -52,6 +52,7 @@ export function ProfileView({
 
   const activeAccount = getActiveAccount();
   const [togglingPin, setTogglingPin] = useState<string | null>(null);
+  const [togglingEnabled, setTogglingEnabled] = useState<string | null>(null);
 
   if (!profile) {
     return (
@@ -84,6 +85,24 @@ export function ProfileView({
       notify("Failed to update pin", String(err));
     }
     setTogglingPin(null);
+  };
+
+  const handleToggleEnabled = async (item: ContentRef) => {
+    if (!profile) return;
+    const contentType = activeTab === "mods" ? "mod" : activeTab === "resourcepacks" ? "resourcepack" : "shaderpack";
+    setTogglingEnabled(item.hash);
+    try {
+      await invoke<Profile>("set_content_enabled_cmd", {
+        profile_id: profile.id,
+        content_name: item.name,
+        content_type: contentType,
+        enabled: !(item.enabled ?? true),
+      });
+      await loadProfile(profile.id);
+    } catch (err) {
+      notify("Failed to update enabled state", String(err));
+    }
+    setTogglingEnabled(null);
   };
 
   const contentCounts = {
@@ -162,11 +181,12 @@ export function ProfileView({
             {contentItems.map((item) => {
               const platform = (item.platform?.toLowerCase() || "local") as Platform;
               const isPinned = item.pinned ?? false;
+              const isEnabled = item.enabled ?? true;
               const platformColor = getPlatformColor(platform);
               const version = formatVersion(item.version);
 
               return (
-                <div key={item.hash} className={clsx("content-item-v2", isPinned && "content-item-pinned")}>
+                <div key={item.hash} className={clsx("content-item-v2", isPinned && "content-item-pinned", !isEnabled && "content-item-disabled")}>
                   {/* Platform indicator stripe */}
                   <div
                     className="content-item-platform-stripe"
@@ -191,6 +211,11 @@ export function ProfileView({
                             Pinned
                           </span>
                         )}
+                        {!isEnabled && (
+                          <span className="content-badge content-badge-disabled" title="Disabled - won't be loaded">
+                            Disabled
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="content-item-meta">
@@ -208,6 +233,21 @@ export function ProfileView({
 
                   {/* Actions */}
                   <div className="content-item-actions">
+                    <button
+                      className={clsx("btn-icon", !isEnabled && "btn-icon-active")}
+                      onClick={() => handleToggleEnabled(item)}
+                      disabled={togglingEnabled === item.hash}
+                      title={isEnabled ? "Disable (won't load)" : "Enable (load in instance)"}
+                    >
+                      {togglingEnabled === item.hash ? (
+                        <span className="btn-icon-loading" />
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 2v6" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M6.4 4.8a8 8 0 1 0 11.2 0" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </button>
                     {platform !== "local" && (
                       <button
                         className={clsx("btn-icon", isPinned && "btn-icon-active")}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import clsx from "clsx";
 import {
   DndContext,
@@ -125,11 +126,15 @@ function DroppableFolder({
             onChange={(e) => onEditChange(e.target.value)}
             onBlur={onFinishRename}
             onKeyDown={(e) => {
+              e.stopPropagation();
               if (e.key === "Enter") onFinishRename();
               if (e.key === "Escape") onCancelRename();
             }}
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onFocus={(e) => e.stopPropagation()}
             placeholder="Folder name"
+            autoFocus
           />
         ) : (
           <span className="profile-dropdown-folder-name">{folder.name || "New Folder"}</span>
@@ -395,9 +400,9 @@ export function Sidebar({
           data-tauri-drag-region="false"
         >
           <div className="profile-context-icon">
-            <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-              <rect x="2" y="2" width="12" height="12" rx="3" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="1.25" />
-              <path d="M5 5.5h6M5 8h4M5 10.5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <path d="M3 7l7-4 7 4v6l-7 4-7-4V7z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+              <path d="M10 11V3M10 11l7-4M10 11l-7-4" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
             </svg>
           </div>
           {selectedProfileId ? (
@@ -592,8 +597,8 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Context menu */}
-      {contextMenuTarget && (
+      {/* Context menu - rendered in portal to escape stacking context */}
+      {contextMenuTarget && createPortal(
         <div
           ref={contextMenuRef}
           className="context-menu"
@@ -685,7 +690,8 @@ export function Sidebar({
               </button>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </aside>
   );

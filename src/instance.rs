@@ -65,6 +65,9 @@ fn populate_dir(
     };
 
     for item in items {
+        if !item.enabled {
+            continue;
+        }
         let store_path = content_store_path(paths, kind, &item.hash);
         if !store_path.exists() {
             eprintln!(

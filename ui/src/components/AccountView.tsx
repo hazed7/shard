@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store";
-import { SkinViewer, type AnimationType, type ModelVariant } from "./SkinViewer";
+import { SkinViewer, type ModelVariant } from "./SkinViewer";
 import { Field } from "./Field";
 import type { AccountInfo, Cape, Account, LibraryItem, LibraryFilter } from "../types";
 import { preloadCapeTextures } from "../lib/player-model";
@@ -12,16 +12,6 @@ import { preloadCapeTextures } from "../lib/player-model";
 interface SkinLibraryItemWithUrl extends LibraryItem {
   resolvedUrl?: string;
 }
-
-// Animation options with labels
-const ANIMATION_OPTIONS: { value: AnimationType; label: string; icon: string }[] = [
-  { value: "idle", label: "Idle", icon: "M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" },
-  { value: "walk", label: "Walk", icon: "M13 4v2l3.5 3.5L13 13v2l5-5-5-5Z M11 4v2L7.5 9.5 11 13v2l-5-5 5-5Z" },
-  { value: "run", label: "Run", icon: "M13 4v2l4 4-4 4v2l6-6-6-6Z M5 4v2l4 4-4 4v2l6-6-6-6Z" },
-  { value: "wave", label: "Wave", icon: "M7 11v-1a1 1 0 0 1 2 0v1M10 11V9a1 1 0 0 1 2 0v2m0 0v1m0-1a1 1 0 0 1 2 0v1m0 0v1a1 1 0 0 1-2 0m2-1a1 1 0 0 1 2 0v1a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3v-2a1 1 0 0 1 1-1" },
-  { value: "crouch", label: "Crouch", icon: "M6 18h12M8 14l4 4 4-4M12 4v14" },
-  { value: "fly", label: "Fly", icon: "M12 19V5M5 12l7-7 7 7" },
-];
 
 interface AccountViewProps {
   onAddAccount: () => void;
@@ -42,7 +32,6 @@ export function AccountView({ onAddAccount }: AccountViewProps) {
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [librarySearch, setLibrarySearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [animation, setAnimation] = useState<AnimationType>("walk");
   const [selectedSkin, setSelectedSkin] = useState<SkinLibraryItemWithUrl | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -419,28 +408,35 @@ export function AccountView({ onAddAccount }: AccountViewProps) {
               model={skinVariant}
               width={280}
               height={400}
-              animation={animation}
-              animationSpeed={0.8}
+              animation="idle"
+              animationSpeed={0.6}
             />
-            {/* Animation selector below viewer */}
-            <div className="account-animation-controls">
-              <div className="account-animation-selector">
-                {ANIMATION_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    className={`account-animation-btn ${animation === opt.value ? "active" : ""}`}
-                    onClick={() => setAnimation(opt.value)}
-                    title={opt.label}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d={opt.icon} />
-                    </svg>
-                    {animation === opt.value && (
-                      <span className="account-animation-label">{opt.label}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
+            {/* Simple variant toggle below viewer */}
+            <div className="account-viewer-variant">
+              <button
+                className={`account-viewer-variant-btn ${skinVariant === "classic" ? "active" : ""}`}
+                onClick={() => setSkinVariant("classic")}
+                title="Classic (4px arms)"
+              >
+                <svg width="14" height="20" viewBox="0 0 14 20" fill="currentColor">
+                  <rect x="3" y="0" width="8" height="8" rx="1" />
+                  <rect x="3" y="9" width="8" height="7" rx="1" />
+                  <rect x="0" y="9" width="2" height="7" rx="0.5" />
+                  <rect x="12" y="9" width="2" height="7" rx="0.5" />
+                </svg>
+              </button>
+              <button
+                className={`account-viewer-variant-btn ${skinVariant === "slim" ? "active" : ""}`}
+                onClick={() => setSkinVariant("slim")}
+                title="Slim (3px arms)"
+              >
+                <svg width="14" height="20" viewBox="0 0 14 20" fill="currentColor">
+                  <rect x="3" y="0" width="8" height="8" rx="1" />
+                  <rect x="3" y="9" width="8" height="7" rx="1" />
+                  <rect x="0.5" y="9" width="1.5" height="7" rx="0.5" />
+                  <rect x="12" y="9" width="1.5" height="7" rx="0.5" />
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -475,46 +471,6 @@ export function AccountView({ onAddAccount }: AccountViewProps) {
             <div className="account-tab-content">
               {tab === "skin" && (
                 <div className="account-skin-tab">
-                  {/* Variant selector */}
-                  <Field label="Model Type">
-                    <div className="account-variant-selector">
-                      <button
-                        className={`account-variant-btn ${skinVariant === "classic" ? "active" : ""}`}
-                        onClick={() => setSkinVariant("classic")}
-                      >
-                        <div className="account-variant-icon">
-                          <svg width="20" height="32" viewBox="0 0 20 32" fill="currentColor" opacity="0.8">
-                            <rect x="4" y="0" width="12" height="12" rx="1" />
-                            <rect x="4" y="13" width="12" height="12" rx="1" />
-                            <rect x="0" y="13" width="3" height="12" rx="1" />
-                            <rect x="17" y="13" width="3" height="12" rx="1" />
-                            <rect x="4" y="26" width="5" height="6" rx="1" />
-                            <rect x="11" y="26" width="5" height="6" rx="1" />
-                          </svg>
-                        </div>
-                        <span>Classic</span>
-                        <span className="account-variant-hint">Standard arms</span>
-                      </button>
-                      <button
-                        className={`account-variant-btn ${skinVariant === "slim" ? "active" : ""}`}
-                        onClick={() => setSkinVariant("slim")}
-                      >
-                        <div className="account-variant-icon">
-                          <svg width="20" height="32" viewBox="0 0 20 32" fill="currentColor" opacity="0.8">
-                            <rect x="4" y="0" width="12" height="12" rx="1" />
-                            <rect x="4" y="13" width="12" height="12" rx="1" />
-                            <rect x="1" y="13" width="2" height="12" rx="1" />
-                            <rect x="17" y="13" width="2" height="12" rx="1" />
-                            <rect x="4" y="26" width="5" height="6" rx="1" />
-                            <rect x="11" y="26" width="5" height="6" rx="1" />
-                          </svg>
-                        </div>
-                        <span>Slim</span>
-                        <span className="account-variant-hint">Thinner arms</span>
-                      </button>
-                    </div>
-                  </Field>
-
                   {/* Upload section */}
                   <div className="account-upload-section">
                     <button

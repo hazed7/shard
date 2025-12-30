@@ -173,12 +173,13 @@ export function AddContentModal({ open, kind, onClose, onAddFromLibrary }: AddCo
 
     setInstalling(true);
     try {
-      await invoke("store_install_cmd", {
-        profileId: profile.id,
-        projectId: selectedStoreItem.id,
+      const input = {
+        profile_id: profile.id,
+        project_id: selectedStoreItem.id,
         platform: selectedStoreItem.platform,
-        contentType: contentTypeMap[kind],
-      });
+        content_type: contentTypeMap[kind],
+      };
+      await invoke("store_install_cmd", { input });
       await loadProfile(profile.id);
       notify("Installed", `${selectedStoreItem.name} added to profile`);
       onClose();
@@ -216,7 +217,7 @@ export function AddContentModal({ open, kind, onClose, onAddFromLibrary }: AddCo
             className={clsx("add-content-tab", source === "store" && "active")}
             onClick={() => { setSource("store"); setSelectedLibraryItem(null); }}
           >
-            Modrinth
+            Store
           </button>
         </div>
 
@@ -224,7 +225,7 @@ export function AddContentModal({ open, kind, onClose, onAddFromLibrary }: AddCo
         <input
           type="text"
           className="input"
-          placeholder={source === "library" ? "Search your library..." : `Search ${contentLabel.toLowerCase()}s on Modrinth...`}
+          placeholder={source === "library" ? "Search your library..." : `Search ${contentLabel.toLowerCase()}s...`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />

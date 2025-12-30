@@ -530,6 +530,7 @@ impl ContentStore {
             platform: None, // Set by caller after download
             project_id: None,
             version_id: None,
+            enabled: true,
             pinned: false,
         })
     }

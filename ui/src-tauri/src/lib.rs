@@ -90,7 +90,8 @@ pub fn run() {
             commands::check_all_updates_cmd,
             commands::check_profile_updates_cmd,
             commands::apply_content_update_cmd,
-            commands::set_content_pinned_cmd
+            commands::set_content_pinned_cmd,
+            commands::set_content_enabled_cmd
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

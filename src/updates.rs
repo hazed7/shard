@@ -410,6 +410,33 @@ pub fn set_content_pinned(
     Ok(profile)
 }
 
+/// Set enabled state for a content item
+pub fn set_content_enabled(
+    paths: &Paths,
+    profile_id: &str,
+    content_name: &str,
+    content_type: &str,
+    enabled: bool,
+) -> Result<Profile> {
+    let mut profile = load_profile(paths, profile_id)?;
+
+    let content_list = match content_type {
+        "mod" => &mut profile.mods,
+        "resourcepack" => &mut profile.resourcepacks,
+        "shaderpack" => &mut profile.shaderpacks,
+        _ => return Err(anyhow::anyhow!("invalid content type: {}", content_type)),
+    };
+
+    let content = content_list
+        .iter_mut()
+        .find(|c| c.name == content_name)
+        .ok_or_else(|| anyhow::anyhow!("content not found: {}", content_name))?;
+
+    content.enabled = enabled;
+    save_profile(paths, &profile)?;
+    Ok(profile)
+}
+
 /// Helper to normalize a hash (strip sha256: prefix if present)
 fn normalize_hash(hash: &str) -> String {
     hash.strip_prefix("sha256:").unwrap_or(hash).to_string()

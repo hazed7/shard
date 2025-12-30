@@ -8,6 +8,7 @@ pub mod java;
 pub mod library;
 pub mod logs;
 pub mod minecraft;
+pub mod modpack;
 pub mod modrinth;
 pub mod ops;
 pub mod paths;

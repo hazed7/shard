@@ -322,8 +322,8 @@ export function LibraryView() {
               onClick={() => setSelectedItem(item)}
               style={{
                 cursor: "pointer",
-                background: selectedItem?.id === item.id ? "rgba(124, 199, 255, 0.08)" : undefined,
-                borderColor: selectedItem?.id === item.id ? "rgba(124, 199, 255, 0.2)" : undefined,
+                background: selectedItem?.id === item.id ? "rgba(232, 168, 85, 0.08)" : undefined,
+                borderColor: selectedItem?.id === item.id ? "rgba(232, 168, 85, 0.2)" : undefined,
               }}
             >
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flex: 1, minWidth: 0 }}>
@@ -368,7 +368,7 @@ export function LibraryView() {
                             fontSize: 10,
                             padding: "2px 6px",
                             borderRadius: 4,
-                            background: tag.color ? `${tag.color}20` : "rgba(124, 199, 255, 0.15)",
+                            background: tag.color ? `${tag.color}20` : "rgba(232, 168, 85, 0.15)",
                             color: tag.color || "var(--accent-primary)",
                           }}
                         >

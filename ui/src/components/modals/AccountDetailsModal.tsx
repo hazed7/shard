@@ -13,20 +13,19 @@ interface AccountDetailsModalProps {
   onClose: () => void;
 }
 
-type SkinMode = "library" | "upload" | "url";
+type Tab = "skin" | "capes";
 
 export function AccountDetailsModal({ open: isOpen, accountId, onClose }: AccountDetailsModalProps) {
   const [info, setInfo] = useState<AccountInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"skin" | "cape">("skin");
+  const [tab, setTab] = useState<Tab>("skin");
   const [uploading, setUploading] = useState(false);
   const [skinVariant, setSkinVariant] = useState<"classic" | "slim">("classic");
-  const [skinUrl, setSkinUrl] = useState("");
-  const [skinMode, setSkinMode] = useState<SkinMode>("library");
   const [librarySkins, setLibrarySkins] = useState<LibraryItem[]>([]);
   const [loadingLibrary, setLoadingLibrary] = useState(false);
   const [selectedLibrarySkin, setSelectedLibrarySkin] = useState<LibraryItem | null>(null);
+  const [skinSearch, setSkinSearch] = useState("");
 
   const loadAccountInfo = useCallback(async () => {
     if (!accountId) return;
@@ -68,7 +67,7 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
       void loadAccountInfo();
       void loadLibrarySkins();
       setSelectedLibrarySkin(null);
-      setSkinMode("library");
+      setSkinSearch("");
     }
   }, [isOpen, accountId, loadAccountInfo, loadLibrarySkins]);
 
@@ -111,25 +110,6 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
       });
       await loadAccountInfo();
       setSelectedLibrarySkin(null);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleSetSkinUrl = async () => {
-    if (!accountId || !skinUrl.trim()) return;
-
-    setUploading(true);
-    try {
-      await invoke("set_skin_url_cmd", {
-        id: accountId,
-        url: skinUrl.trim(),
-        variant: skinVariant,
-      });
-      await loadAccountInfo();
-      setSkinUrl("");
     } catch (err) {
       setError(String(err));
     } finally {
@@ -229,14 +209,17 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
             {/* Tab switcher */}
             <div className="content-tabs" style={{ marginBottom: 20 }}>
               <button
-                className={`content-tab ${tab === "skin" ? "active" : ""}`}
+                className={clsx("content-tab", tab === "skin" && "active")}
                 onClick={() => setTab("skin")}
               >
                 Skin
+                {librarySkins.length > 0 && (
+                  <span className="count">{librarySkins.length}</span>
+                )}
               </button>
               <button
-                className={`content-tab ${tab === "cape" ? "active" : ""}`}
-                onClick={() => setTab("cape")}
+                className={clsx("content-tab", tab === "capes" && "active")}
+                onClick={() => setTab("capes")}
               >
                 Capes
                 {(info.profile?.capes?.length ?? 0) > 0 && (
@@ -247,177 +230,166 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
 
             {tab === "skin" && (
               <div>
-                {/* Variant selector */}
-                <Field label="Skin Variant">
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      className={`btn btn-secondary btn-sm ${skinVariant === "classic" ? "active" : ""}`}
-                      onClick={() => setSkinVariant("classic")}
-                      style={{
-                        background: skinVariant === "classic" ? "rgba(124, 199, 255, 0.15)" : undefined,
-                        borderColor: skinVariant === "classic" ? "rgba(124, 199, 255, 0.3)" : undefined,
-                      }}
-                    >
-                      Classic (Steve)
-                    </button>
-                    <button
-                      className={`btn btn-secondary btn-sm ${skinVariant === "slim" ? "active" : ""}`}
-                      onClick={() => setSkinVariant("slim")}
-                      style={{
-                        background: skinVariant === "slim" ? "rgba(124, 199, 255, 0.15)" : undefined,
-                        borderColor: skinVariant === "slim" ? "rgba(124, 199, 255, 0.3)" : undefined,
-                      }}
-                    >
-                      Slim (Alex)
-                    </button>
-                  </div>
-                </Field>
-
-                {/* Skin source tabs */}
-                <div className="content-tabs" style={{ marginTop: 16, marginBottom: 12 }}>
+                {/* Search and upload row */}
+                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="Search skins..."
+                    value={skinSearch}
+                    onChange={(e) => setSkinSearch(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
                   <button
-                    className={clsx("content-tab", skinMode === "library" && "active")}
-                    onClick={() => setSkinMode("library")}
+                    className="btn btn-secondary"
+                    onClick={handleUploadSkin}
+                    disabled={uploading}
+                    title="Add Skin to Library"
                   >
-                    Library
-                  </button>
-                  <button
-                    className={clsx("content-tab", skinMode === "upload" && "active")}
-                    onClick={() => setSkinMode("upload")}
-                  >
-                    Upload
-                  </button>
-                  <button
-                    className={clsx("content-tab", skinMode === "url" && "active")}
-                    onClick={() => setSkinMode("url")}
-                  >
-                    URL
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
                   </button>
                 </div>
 
-                {/* Library skins */}
-                {skinMode === "library" && (
-                  <div>
-                    {loadingLibrary ? (
-                      <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading skins...</p>
-                    ) : librarySkins.length === 0 ? (
-                      <div style={{ textAlign: "center", padding: 16 }}>
-                        <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 12 }}>
-                          No skins in library yet.
-                        </p>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => setSkinMode("upload")}
-                        >
-                          Upload a skin
-                        </button>
-                      </div>
-                    ) : (
-                      <>
+                {/* Library grid */}
+                {loadingLibrary ? (
+                  <p style={{ color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: 20 }}>Loading skins...</p>
+                ) : librarySkins.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: 24, background: "rgba(255,255,255,0.02)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.3, marginBottom: 12 }}>
+                      <rect x="8" y="4" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="8" y="12" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="4" y="12" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="16" y="12" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                    </svg>
+                    <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 12 }}>
+                      No skins in library yet
+                    </p>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={handleUploadSkin}
+                      disabled={uploading}
+                    >
+                      {uploading ? "Uploading..." : "Upload Your First Skin"}
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, 1fr)",
+                      gap: 8,
+                      maxHeight: 180,
+                      overflowY: "auto",
+                      marginBottom: 12,
+                    }}
+                  >
+                    {librarySkins
+                      .filter((skin) => !skinSearch || skin.name.toLowerCase().includes(skinSearch.toLowerCase()))
+                      .map((skin) => (
+                      <div
+                        key={skin.id}
+                        onClick={() => setSelectedLibrarySkin(selectedLibrarySkin?.id === skin.id ? null : skin)}
+                        style={{
+                          padding: 8,
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          textAlign: "center",
+                          background: selectedLibrarySkin?.id === skin.id
+                            ? "rgba(232, 168, 85, 0.15)"
+                            : "rgba(255, 255, 255, 0.03)",
+                          border: selectedLibrarySkin?.id === skin.id
+                            ? "1px solid rgba(232, 168, 85, 0.3)"
+                            : "1px solid var(--border-subtle)",
+                          transition: "all 0.15s ease",
+                        }}
+                        title={skin.name}
+                      >
                         <div
                           style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(4, 1fr)",
-                            gap: 8,
-                            maxHeight: 160,
-                            overflowY: "auto",
-                            marginBottom: 12,
+                            width: 40,
+                            height: 40,
+                            margin: "0 auto 6px",
+                            background: "rgba(255, 255, 255, 0.05)",
+                            borderRadius: 4,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
                           }}
                         >
-                          {librarySkins.map((skin) => (
-                            <div
-                              key={skin.id}
-                              onClick={() => setSelectedLibrarySkin(skin)}
-                              style={{
-                                padding: 8,
-                                borderRadius: 8,
-                                cursor: "pointer",
-                                textAlign: "center",
-                                fontSize: 11,
-                                background: selectedLibrarySkin?.id === skin.id
-                                  ? "rgba(124, 199, 255, 0.15)"
-                                  : "rgba(255, 255, 255, 0.03)",
-                                border: selectedLibrarySkin?.id === skin.id
-                                  ? "1px solid rgba(124, 199, 255, 0.3)"
-                                  : "1px solid var(--border-subtle)",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                              title={skin.name}
-                            >
-                              {skin.name}
-                            </div>
-                          ))}
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.4 }}>
+                            <rect x="8" y="4" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                            <rect x="8" y="12" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                          </svg>
                         </div>
-                        <button
-                          className="btn btn-primary"
-                          onClick={handleApplyLibrarySkin}
-                          disabled={!selectedLibrarySkin || uploading}
-                          style={{ width: "100%" }}
-                        >
-                          {uploading ? "Applying..." : "Apply Selected Skin"}
-                        </button>
-                      </>
-                    )}
+                        <div style={{
+                          fontSize: 10,
+                          color: "var(--text-primary)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}>
+                          {skin.name}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                {/* Upload skin */}
-                {skinMode === "upload" && (
-                  <div>
+                {/* Apply section */}
+                {selectedLibrarySkin && (
+                  <div style={{ marginTop: 12, padding: 12, background: "rgba(255,255,255,0.02)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                      <button
+                        className={clsx("btn btn-secondary btn-sm", skinVariant === "classic" && "active")}
+                        onClick={() => setSkinVariant("classic")}
+                        style={{
+                          flex: 1,
+                          background: skinVariant === "classic" ? "rgba(232, 168, 85, 0.15)" : undefined,
+                          borderColor: skinVariant === "classic" ? "rgba(232, 168, 85, 0.3)" : undefined,
+                        }}
+                      >
+                        Classic
+                      </button>
+                      <button
+                        className={clsx("btn btn-secondary btn-sm", skinVariant === "slim" && "active")}
+                        onClick={() => setSkinVariant("slim")}
+                        style={{
+                          flex: 1,
+                          background: skinVariant === "slim" ? "rgba(232, 168, 85, 0.15)" : undefined,
+                          borderColor: skinVariant === "slim" ? "rgba(232, 168, 85, 0.3)" : undefined,
+                        }}
+                      >
+                        Slim
+                      </button>
+                    </div>
                     <button
                       className="btn btn-primary"
-                      onClick={handleUploadSkin}
+                      onClick={handleApplyLibrarySkin}
                       disabled={uploading}
                       style={{ width: "100%" }}
                     >
-                      {uploading ? "Uploading..." : "Upload Skin File"}
+                      {uploading ? "Applying..." : `Apply "${selectedLibrarySkin.name}"`}
                     </button>
-                    <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8 }}>
-                      Uploaded skins are automatically saved to your library.
-                    </p>
                   </div>
                 )}
 
-                {/* Set from URL */}
-                {skinMode === "url" && (
-                  <Field label="Skin URL">
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <input
-                        type="text"
-                        className="input"
-                        placeholder="https://..."
-                        value={skinUrl}
-                        onChange={(e) => setSkinUrl(e.target.value)}
-                        style={{ flex: 1 }}
-                      />
-                      <button
-                        className="btn btn-primary"
-                        onClick={handleSetSkinUrl}
-                        disabled={!skinUrl.trim() || uploading}
-                      >
-                        {uploading ? "..." : "Set"}
-                      </button>
-                    </div>
-                  </Field>
-                )}
-
-                {/* Reset skin */}
-                <div style={{ marginTop: 20 }}>
+                {/* Reset option */}
+                <div style={{ marginTop: 12, textAlign: "center" }}>
                   <button
-                    className="btn btn-ghost"
+                    className="btn btn-ghost btn-sm"
                     onClick={handleResetSkin}
                     disabled={uploading}
-                    style={{ color: "var(--text-muted)" }}
+                    style={{ color: "var(--text-muted)", fontSize: 11 }}
                   >
-                    Reset to default skin
+                    Reset to default
                   </button>
                 </div>
               </div>
             )}
 
-            {tab === "cape" && (
+            {tab === "capes" && (
               <div>
                 {(info.profile?.capes?.length ?? 0) === 0 ? (
                   <div
@@ -441,11 +413,11 @@ export function AccountDetailsModal({ open: isOpen, accountId, onClose }: Accoun
                         style={{
                           background:
                             cape.state === "ACTIVE"
-                              ? "rgba(124, 199, 255, 0.1)"
+                              ? "rgba(232, 168, 85, 0.1)"
                               : undefined,
                           borderColor:
                             cape.state === "ACTIVE"
-                              ? "rgba(124, 199, 255, 0.2)"
+                              ? "rgba(232, 168, 85, 0.2)"
                               : undefined,
                         }}
                       >

@@ -28,7 +28,7 @@ use shard::skin::{
 };
 use shard::store::{ContentKind, store_content};
 use shard::template::{Template, list_templates, load_template, init_builtin_templates};
-use shard::updates::{StorageStats, UpdateCheckResult, get_storage_stats, check_all_updates, check_profile_updates, set_content_pinned, apply_update};
+use shard::updates::{StorageStats, UpdateCheckResult, get_storage_stats, check_all_updates, check_profile_updates, set_content_pinned, set_content_enabled, apply_update};
 use std::path::PathBuf;
 use std::process::Command;
 use tauri::{AppHandle, Emitter};
@@ -268,6 +268,7 @@ fn add_content(
         platform: None, // Manual import via UI
         project_id: None,
         version_id: None,
+        enabled: true,
         pinned: false,
     };
 
@@ -1318,6 +1319,7 @@ pub fn library_add_to_profile_cmd(profile_id: String, item_id: i64) -> Result<Pr
         platform: item.source_platform.clone(),
         project_id: item.source_project_id.clone(),
         version_id: None, // Library items may not have version IDs
+        enabled: true,
         pinned: false,
     };
 
@@ -1410,4 +1412,15 @@ pub fn set_content_pinned_cmd(
 ) -> Result<Profile, String> {
     let paths = load_paths()?;
     set_content_pinned(&paths, &profile_id, &content_name, &content_type, pinned).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_content_enabled_cmd(
+    profile_id: String,
+    content_name: String,
+    content_type: String,
+    enabled: bool,
+) -> Result<Profile, String> {
+    let paths = load_paths()?;
+    set_content_enabled(&paths, &profile_id, &content_name, &content_type, enabled).map_err(|e| e.to_string())
 }

@@ -7,6 +7,7 @@ export type ContentRef = {
   platform?: string | null;
   project_id?: string | null;
   version_id?: string | null;
+  enabled?: boolean;
   pinned?: boolean;
 };
 

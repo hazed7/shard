@@ -49,6 +49,9 @@ pub struct ContentRef {
     /// Version ID on the platform (for update checking)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version_id: Option<String>,
+    /// Whether this content is enabled in the instance
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
     /// If true, this content is pinned and won't be auto-updated
     #[serde(default, skip_serializing_if = "is_false")]
     pub pinned: bool,
@@ -56,6 +59,14 @@ pub struct ContentRef {
 
 fn is_false(b: &bool) -> bool {
     !*b
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn is_true(b: &bool) -> bool {
+    *b
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

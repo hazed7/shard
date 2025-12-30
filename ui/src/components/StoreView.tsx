@@ -302,8 +302,8 @@ export function StoreView() {
               onClick={() => handleSelectProject(project)}
               style={{
                 cursor: "pointer",
-                background: selectedProject?.id === project.id ? "rgba(124, 199, 255, 0.08)" : undefined,
-                borderColor: selectedProject?.id === project.id ? "rgba(124, 199, 255, 0.2)" : undefined,
+                background: selectedProject?.id === project.id ? "rgba(232, 168, 85, 0.08)" : undefined,
+                borderColor: selectedProject?.id === project.id ? "rgba(232, 168, 85, 0.2)" : undefined,
               }}
             >
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flex: 1, minWidth: 0 }}>
