@@ -13,9 +13,17 @@ description: How to download and install Shard Launcher
 
 > **Note**: On first launch, macOS may show a security warning. Right-click the app and select "Open" to bypass Gatekeeper.
 
-## Windows & Linux
+## Windows
 
-Windows and Linux builds are coming soon. In the meantime, you can [build from source](/docs/building).
+1. Download the latest `.msi` or `.exe` file from the [download page](/download)
+2. Run the installer or execute the portable `.exe`
+3. Launch Shard from the Start Menu or desktop shortcut
+
+## Linux
+
+1. Download the latest `.AppImage` or `.deb` file from the [download page](/download)
+2. For AppImage: Make it executable (`chmod +x Shard-Launcher-*.AppImage`) and run
+3. For Debian/Ubuntu: Install with `sudo dpkg -i Shard-Launcher-*.deb`
 
 ## Verifying Downloads
 
@@ -28,9 +36,24 @@ shasum -a 256 Shard-Launcher-*.dmg
 # Compare with the checksum in CHECKSUMS.txt from the release
 ```
 
+## CLI (Optional)
+
+The CLI is a separate tool for scripting and automation. The desktop app and CLI share the same data directory, so profiles and accounts work with both.
+
+```bash
+# Build and install CLI
+cd launcher
+cargo install --path .
+
+# Now available as `shard` command
+shard --help
+```
+
+See the [CLI Reference](/docs/cli) for full documentation.
+
 ## Data Location
 
-Shard stores all data in `~/.shard/`:
+Shard stores all data in `~/.shard/`. Both the desktop app and CLI use this directory:
 
 ```
 ~/.shard/

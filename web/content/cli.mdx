@@ -9,12 +9,23 @@ Shard includes a full-featured CLI for scripting and automation.
 
 ## Installation
 
-The CLI is included in the desktop app, or build it separately:
+The CLI is a separate binary from the desktop app. Both share the same data directory (`~/.shard/`), so profiles, accounts, and mods are shared between them.
+
+### Build from source
 
 ```bash
 cd launcher
 cargo build --release
 # Binary: target/release/shard
+
+# Or install to ~/.cargo/bin/
+cargo install --path .
+```
+
+### Homebrew (coming soon)
+
+```bash
+brew install shard-launcher
 ```
 
 ## Global Options
