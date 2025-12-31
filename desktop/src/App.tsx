@@ -102,7 +102,9 @@ function App() {
 
   // Launch event listener
   useEffect(() => {
+    console.log("[launch] Setting up event listener");
     const unlisten = listen<LaunchEvent>("launch-status", (event) => {
+      console.log("[launch] Received event:", event.payload);
       setLaunchStatus(event.payload);
       if (event.payload.stage === "error") {
         notify("Launch failed", event.payload.message ?? "Unknown error");
@@ -112,6 +114,7 @@ function App() {
       }
     });
     return () => {
+      console.log("[launch] Cleaning up event listener");
       void unlisten.then((fn) => fn());
     };
   }, [setLaunchStatus, notify]);
@@ -241,23 +244,29 @@ function App() {
   }, [selectedProfileId, activeTab, setConfirmState, runAction, loadProfile]);
 
   const handleLaunch = useCallback(async () => {
+    // Prevent double-click race condition
+    if (launchStatus) return;
+
     const activeAccount = getActiveAccount();
     if (!selectedProfileId || !activeAccount) {
       notify("No account", "Add an account first.");
       return;
     }
+
+    // Set status immediately to prevent double-clicks
+    setLaunchStatus({ stage: "queued" });
+
     try {
       await invoke("launch_profile_cmd", {
         profileId: selectedProfileId,
         accountId: activeAccount.uuid,
       });
-      // Only set status after successful invoke - events will update it further
-      setLaunchStatus({ stage: "queued" });
+      // Status will be updated by launch-status events
     } catch (err) {
       notify("Launch failed", String(err));
       setLaunchStatus(null);
     }
-  }, [selectedProfileId, getActiveAccount, notify, setLaunchStatus]);
+  }, [selectedProfileId, getActiveAccount, notify, setLaunchStatus, launchStatus]);
 
   const handleOpenInstance = useCallback(async () => {
     if (!selectedProfileId) return;

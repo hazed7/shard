@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -8,6 +8,55 @@ import { SkinHead } from "./SkinThumbnail";
 import { Field } from "./Field";
 import type { AccountInfo, Cape, Account, LibraryItem, LibraryFilter } from "../types";
 import { preloadCapeTextures } from "../lib/player-model";
+
+// Cape preview - extracts the front portion of the cape texture
+// Defined outside component to prevent remounting on each render
+const CapePreview = memo(function CapePreview({ capeUrl, size = 32 }: { capeUrl: string; size?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!canvasRef.current || !capeUrl) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    setLoaded(false);
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      ctx.clearRect(0, 0, size, size);
+      ctx.imageSmoothingEnabled = false;
+
+      // Cape texture is 64x32 (or 22x17 for older capes)
+      // The front of the cape is at (1, 1) with size 10x16
+      // We'll extract a square from the center-top of the front
+      const srcX = 1;
+      const srcY = 1;
+      const srcSize = 10; // Width of front cape section
+
+      // Draw the front cape section, scaled to fit square
+      ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, size, size);
+      setLoaded(true);
+    };
+    img.onerror = () => {
+      ctx.fillStyle = "#333";
+      ctx.fillRect(0, 0, size, size);
+    };
+    img.src = capeUrl;
+  }, [capeUrl, size]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={size}
+      height={size}
+      style={{ imageRendering: "pixelated", borderRadius: 6, opacity: loaded ? 1 : 0.5 }}
+    />
+  );
+});
 
 // Extended library item with resolved skin URL
 interface SkinLibraryItemWithUrl extends LibraryItem {
@@ -293,54 +342,6 @@ export function AccountView({ onAddAccount }: AccountViewProps) {
     // Fallback to mc-heads.net
     const cleanUuid = uuid.replace(/-/g, "");
     return `https://mc-heads.net/avatar/${cleanUuid}/64`;
-  };
-
-  // Cape preview - extracts the front portion of the cape texture
-  const CapePreview = ({ capeUrl, size = 32 }: { capeUrl: string; size?: number }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [loaded, setLoaded] = useState(false);
-
-    useEffect(() => {
-      if (!canvasRef.current || !capeUrl) return;
-
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      setLoaded(false);
-
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        ctx.clearRect(0, 0, size, size);
-        ctx.imageSmoothingEnabled = false;
-
-        // Cape texture is 64x32 (or 22x17 for older capes)
-        // The front of the cape is at (1, 1) with size 10x16
-        // We'll extract a square from the center-top of the front
-        const srcX = 1;
-        const srcY = 1;
-        const srcSize = 10; // Width of front cape section
-
-        // Draw the front cape section, scaled to fit square
-        ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, size, size);
-        setLoaded(true);
-      };
-      img.onerror = () => {
-        ctx.fillStyle = "#333";
-        ctx.fillRect(0, 0, size, size);
-      };
-      img.src = capeUrl;
-    }, [capeUrl, size]);
-
-    return (
-      <canvas
-        ref={canvasRef}
-        width={size}
-        height={size}
-        style={{ imageRendering: "pixelated", borderRadius: 6, opacity: loaded ? 1 : 0.5 }}
-      />
-    );
   };
 
   if (!accounts || accounts.accounts.length === 0) {

@@ -401,14 +401,19 @@ pub fn prepare_profile_cmd(profile_id: String, account_id: Option<String>) -> Re
 }
 
 #[tauri::command]
-pub async fn launch_profile_cmd(app: AppHandle, profile_id: String, account_id: Option<String>) -> Result<(), String> {
+pub fn launch_profile_cmd(app: AppHandle, profile_id: String, account_id: Option<String>) -> Result<(), String> {
     let app_handle = app.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        if let Err(err) = run_launch(app_handle.clone(), profile_id, account_id) {
-            let _ = app_handle.emit("launch-status", LaunchEvent {
-                stage: "error".to_string(),
-                message: Some(err),
-            });
+    std::thread::spawn(move || {
+        eprintln!("[launch] Starting launch for profile: {}", profile_id);
+        match run_launch(app_handle.clone(), profile_id.clone(), account_id) {
+            Ok(()) => eprintln!("[launch] Launch completed successfully for profile: {}", profile_id),
+            Err(err) => {
+                eprintln!("[launch] Launch failed for profile {}: {}", profile_id, err);
+                let _ = app_handle.emit("launch-status", LaunchEvent {
+                    stage: "error".to_string(),
+                    message: Some(err),
+                });
+            }
         }
     });
     Ok(())
@@ -421,34 +426,53 @@ pub fn instance_path_cmd(profile_id: String) -> Result<String, String> {
 }
 
 fn run_launch(app: AppHandle, profile_id: String, account_id: Option<String>) -> Result<(), String> {
-    let _ = app.emit("launch-status", LaunchEvent {
+    eprintln!("[launch] Emitting 'preparing' status");
+    let emit_result = app.emit("launch-status", LaunchEvent {
         stage: "preparing".to_string(),
         message: None,
     });
+    eprintln!("[launch] Emit 'preparing' result: {:?}", emit_result);
+
+    eprintln!("[launch] Loading paths...");
     let paths = load_paths()?;
+    eprintln!("[launch] Loading profile...");
     let profile = load_profile(&paths, &profile_id).map_err(|e| e.to_string())?;
+    eprintln!("[launch] Resolving account...");
     let account = resolve_launch_account(&paths, account_id).map_err(|e| e.to_string())?;
+    eprintln!("[launch] Preparing launch plan...");
     let plan = prepare(&paths, &profile, &account).map_err(|e| e.to_string())?;
 
+    eprintln!("[launch] Emitting 'launching' status");
     let _ = app.emit("launch-status", LaunchEvent {
         stage: "launching".to_string(),
         message: None,
     });
 
-    let status = Command::new(&plan.java_exec)
+    eprintln!("[launch] Spawning java process: {}", plan.java_exec);
+    let mut child = Command::new(&plan.java_exec)
         .args(&plan.jvm_args)
         .arg("-cp")
         .arg(&plan.classpath)
         .arg(&plan.main_class)
         .args(&plan.game_args)
         .current_dir(&plan.instance_dir)
-        .status()
+        .spawn()
         .map_err(|e| e.to_string())?;
+
+    eprintln!("[launch] Process spawned, emitting 'running' status");
+    let _ = app.emit("launch-status", LaunchEvent {
+        stage: "running".to_string(),
+        message: None,
+    });
+
+    eprintln!("[launch] Waiting for process to finish...");
+    let status = child.wait().map_err(|e| e.to_string())?;
 
     if !status.success() {
         return Err(format!("minecraft exited with status {status}"));
     }
 
+    eprintln!("[launch] Emitting 'done' status");
     let _ = app.emit("launch-status", LaunchEvent {
         stage: "done".to_string(),
         message: None,
@@ -1174,9 +1198,9 @@ pub fn fetch_neoforge_versions_cmd(mc_version: Option<String>) -> Result<Vec<Str
         .json()
         .map_err(|e| format!("Failed to parse NeoForge versions: {}", e))?;
 
-    // Sort versions in descending order (newest first)
+    // Sort versions in descending order (newest first) using semantic versioning
     let mut versions = data.versions;
-    versions.sort_by(|a, b| b.cmp(a));
+    versions.sort_by(|a, b| compare_versions_desc(b, a));
     Ok(versions)
 }
 
@@ -1233,9 +1257,32 @@ pub fn fetch_forge_versions_cmd(mc_version: Option<String>) -> Result<Vec<String
             .collect()
     };
 
-    // Sort versions in descending order (newest first)
-    versions.sort_by(|a, b| b.cmp(a));
+    // Sort versions in descending order (newest first) using semantic versioning
+    versions.sort_by(|a, b| compare_versions_desc(b, a));
     Ok(versions)
+}
+
+/// Compare two version strings semantically (for descending sort)
+/// Returns Ordering based on semantic version comparison
+fn compare_versions_desc(a: &str, b: &str) -> std::cmp::Ordering {
+    let parse_parts = |s: &str| -> Vec<u64> {
+        s.split(|c: char| c == '.' || c == '-')
+            .filter_map(|p| p.parse::<u64>().ok())
+            .collect()
+    };
+
+    let a_parts = parse_parts(a);
+    let b_parts = parse_parts(b);
+
+    for (a_part, b_part) in a_parts.iter().zip(b_parts.iter()) {
+        match a_part.cmp(b_part) {
+            std::cmp::Ordering::Equal => continue,
+            other => return other,
+        }
+    }
+
+    // If all compared parts are equal, longer version is greater
+    a_parts.len().cmp(&b_parts.len())
 }
 
 /// Fetch loader versions for any supported loader type
