@@ -266,6 +266,7 @@ export function SkinViewer({
     <div
       className={`skin-viewer ${className ?? ""}`}
       style={{ position: "relative", width, height }}
+      data-tauri-drag-region="false"
     >
       {isLoading && (
         <div className="skin-viewer-overlay skin-viewer-overlay--loading">
