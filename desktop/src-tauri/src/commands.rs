@@ -403,12 +403,18 @@ pub fn prepare_profile_cmd(profile_id: String, account_id: Option<String>) -> Re
 #[tauri::command]
 pub fn launch_profile_cmd(app: AppHandle, profile_id: String, account_id: Option<String>) -> Result<(), String> {
     let app_handle = app.clone();
-    std::thread::spawn(move || {
-        eprintln!("[launch] Starting launch for profile: {}", profile_id);
+
+    // Emit initial status immediately before spawning thread
+    let _ = app.emit("launch-status", LaunchEvent {
+        stage: "queued".to_string(),
+        message: Some("Starting launch...".to_string()),
+    });
+
+    // Use spawn_blocking for blocking I/O operations (HTTP requests, file I/O)
+    tauri::async_runtime::spawn_blocking(move || {
         match run_launch(app_handle.clone(), profile_id.clone(), account_id) {
-            Ok(()) => eprintln!("[launch] Launch completed successfully for profile: {}", profile_id),
+            Ok(()) => {}
             Err(err) => {
-                eprintln!("[launch] Launch failed for profile {}: {}", profile_id, err);
                 let _ = app_handle.emit("launch-status", LaunchEvent {
                     stage: "error".to_string(),
                     message: Some(err),
@@ -426,29 +432,21 @@ pub fn instance_path_cmd(profile_id: String) -> Result<String, String> {
 }
 
 fn run_launch(app: AppHandle, profile_id: String, account_id: Option<String>) -> Result<(), String> {
-    eprintln!("[launch] Emitting 'preparing' status");
-    let emit_result = app.emit("launch-status", LaunchEvent {
+    let _ = app.emit("launch-status", LaunchEvent {
         stage: "preparing".to_string(),
-        message: None,
+        message: Some("Downloading game files...".to_string()),
     });
-    eprintln!("[launch] Emit 'preparing' result: {:?}", emit_result);
 
-    eprintln!("[launch] Loading paths...");
     let paths = load_paths()?;
-    eprintln!("[launch] Loading profile...");
-    let profile = load_profile(&paths, &profile_id).map_err(|e| e.to_string())?;
-    eprintln!("[launch] Resolving account...");
-    let account = resolve_launch_account(&paths, account_id).map_err(|e| e.to_string())?;
-    eprintln!("[launch] Preparing launch plan...");
-    let plan = prepare(&paths, &profile, &account).map_err(|e| e.to_string())?;
+    let profile = load_profile(&paths, &profile_id).map_err(|e| format!("Failed to load profile: {}", e))?;
+    let account = resolve_launch_account(&paths, account_id).map_err(|e| format!("Failed to resolve account: {}", e))?;
+    let plan = prepare(&paths, &profile, &account).map_err(|e| format!("Failed to prepare launch: {}", e))?;
 
-    eprintln!("[launch] Emitting 'launching' status");
     let _ = app.emit("launch-status", LaunchEvent {
         stage: "launching".to_string(),
-        message: None,
+        message: Some("Starting Minecraft...".to_string()),
     });
 
-    eprintln!("[launch] Spawning java process: {}", plan.java_exec);
     let mut child = Command::new(&plan.java_exec)
         .args(&plan.jvm_args)
         .arg("-cp")
@@ -457,22 +455,19 @@ fn run_launch(app: AppHandle, profile_id: String, account_id: Option<String>) ->
         .args(&plan.game_args)
         .current_dir(&plan.instance_dir)
         .spawn()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Failed to start Java: {}", e))?;
 
-    eprintln!("[launch] Process spawned, emitting 'running' status");
     let _ = app.emit("launch-status", LaunchEvent {
         stage: "running".to_string(),
-        message: None,
+        message: Some("Minecraft is running".to_string()),
     });
 
-    eprintln!("[launch] Waiting for process to finish...");
-    let status = child.wait().map_err(|e| e.to_string())?;
+    let status = child.wait().map_err(|e| format!("Failed to wait for process: {}", e))?;
 
     if !status.success() {
-        return Err(format!("minecraft exited with status {status}"));
+        return Err(format!("Minecraft exited with status {}", status));
     }
 
-    eprintln!("[launch] Emitting 'done' status");
     let _ = app.emit("launch-status", LaunchEvent {
         stage: "done".to_string(),
         message: None,

@@ -104,9 +104,24 @@ export function StoreView() {
     const contentArray = category === "mods" ? profile.mods
       : category === "resourcepacks" ? profile.resourcepacks
       : profile.shaderpacks;
-    return contentArray.some(
-      (item) => item.platform === project.platform && item.project_id === project.id
-    );
+
+    // Normalize name for comparison (lowercase, remove special chars)
+    const normalizeForComparison = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const projectNameNorm = normalizeForComparison(project.name);
+    const projectSlugNorm = normalizeForComparison(project.slug);
+
+    return contentArray.some((item) => {
+      // Try exact platform + project_id match (project_id could be id or slug)
+      // Use case-insensitive comparison for platform since storage may have inconsistent casing
+      if (item.platform?.toLowerCase() === project.platform.toLowerCase()) {
+        if (item.project_id === project.id || item.project_id === project.slug) {
+          return true;
+        }
+      }
+      // Fall back to name-based matching for items without platform metadata
+      const itemNameNorm = normalizeForComparison(item.name);
+      return itemNameNorm === projectNameNorm || itemNameNorm === projectSlugNorm;
+    });
   }, [profile, category]);
 
   const handleSearch = useCallback(async () => {

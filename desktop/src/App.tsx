@@ -102,9 +102,7 @@ function App() {
 
   // Launch event listener
   useEffect(() => {
-    console.log("[launch] Setting up event listener");
     const unlisten = listen<LaunchEvent>("launch-status", (event) => {
-      console.log("[launch] Received event:", event.payload);
       setLaunchStatus(event.payload);
       if (event.payload.stage === "error") {
         notify("Launch failed", event.payload.message ?? "Unknown error");
@@ -114,7 +112,6 @@ function App() {
       }
     });
     return () => {
-      console.log("[launch] Cleaning up event listener");
       void unlisten.then((fn) => fn());
     };
   }, [setLaunchStatus, notify]);
@@ -406,8 +403,8 @@ function App() {
             <div className="launch-status">
               <div className="launch-status-dot" />
               <div className="launch-status-text">
-                {launchStatus.stage}
-                {launchStatus.message && ` — ${launchStatus.message}`}
+                {launchStatus.stage.charAt(0).toUpperCase() + launchStatus.stage.slice(1)}
+                {launchStatus.message && `: ${launchStatus.message}`}
               </div>
             </div>
           )}
