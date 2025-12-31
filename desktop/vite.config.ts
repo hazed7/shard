@@ -16,8 +16,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          // Split three.js and skinview3d into a separate chunk (only loaded when needed)
-          "skinviewer": ["three", "skinview3d"],
+          // Split three.js into a separate chunk (only loaded when needed)
+          "skinviewer": ["three"],
         }
       }
     }
