@@ -126,6 +126,36 @@ pub struct ImportResult {
     pub errors: Vec<String>,
 }
 
+/// An unused item candidate for purging
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnusedItem {
+    pub id: i64,
+    pub hash: String,
+    pub content_type: LibraryContentType,
+    pub name: String,
+    pub file_size: Option<i64>,
+}
+
+/// Result of a purge operation
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PurgeResult {
+    pub deleted_count: usize,
+    pub freed_bytes: u64,
+    pub items: Vec<UnusedItem>,
+    pub errors: Vec<String>,
+}
+
+/// Summary of unused items by category
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct UnusedItemsSummary {
+    pub mods: Vec<UnusedItem>,
+    pub resourcepacks: Vec<UnusedItem>,
+    pub shaderpacks: Vec<UnusedItem>,
+    pub skins: Vec<UnusedItem>,
+    pub total_count: usize,
+    pub total_bytes: u64,
+}
+
 /// Library statistics
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LibraryStats {
@@ -908,6 +938,112 @@ impl Library {
                 }) {
                     Ok(_) => result.added += 1,
                     Err(e) => result.errors.push(format!("{}: {}", hash, e)),
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    // ========== Purge Unused Items ==========
+
+    /// Get all unused items (items not referenced by any profile)
+    pub fn get_unused_items(&self) -> Result<UnusedItemsSummary> {
+        let mut summary = UnusedItemsSummary::default();
+
+        // Query items that have no entries in profile_items
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT id, hash, content_type, name, file_size
+            FROM library_items
+            WHERE id NOT IN (SELECT DISTINCT item_id FROM profile_items)
+            ORDER BY content_type, name
+            "#,
+        )?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok(UnusedItem {
+                id: row.get(0)?,
+                hash: row.get(1)?,
+                content_type: LibraryContentType::from_str(&row.get::<_, String>(2)?)
+                    .unwrap_or(LibraryContentType::Mod),
+                name: row.get(3)?,
+                file_size: row.get(4)?,
+            })
+        })?;
+
+        for row in rows {
+            let item = row?;
+            let size = item.file_size.unwrap_or(0) as u64;
+            summary.total_bytes += size;
+            summary.total_count += 1;
+
+            match item.content_type {
+                LibraryContentType::Mod => summary.mods.push(item),
+                LibraryContentType::ResourcePack => summary.resourcepacks.push(item),
+                LibraryContentType::ShaderPack => summary.shaderpacks.push(item),
+                LibraryContentType::Skin => summary.skins.push(item),
+            }
+        }
+
+        Ok(summary)
+    }
+
+    /// Purge unused items from the library and optionally from the store
+    pub fn purge_unused_items(
+        &self,
+        paths: &Paths,
+        content_types: &[LibraryContentType],
+        delete_files: bool,
+    ) -> Result<PurgeResult> {
+        let mut result = PurgeResult::default();
+        let unused = self.get_unused_items()?;
+
+        // Collect items to delete based on selected content types
+        let items_to_delete: Vec<UnusedItem> = if content_types.is_empty() {
+            // Delete all unused if no filter specified
+            unused.mods.into_iter()
+                .chain(unused.resourcepacks)
+                .chain(unused.shaderpacks)
+                .chain(unused.skins)
+                .collect()
+        } else {
+            let mut items = Vec::new();
+            for ct in content_types {
+                match ct {
+                    LibraryContentType::Mod => items.extend(unused.mods.clone()),
+                    LibraryContentType::ResourcePack => items.extend(unused.resourcepacks.clone()),
+                    LibraryContentType::ShaderPack => items.extend(unused.shaderpacks.clone()),
+                    LibraryContentType::Skin => items.extend(unused.skins.clone()),
+                }
+            }
+            items
+        };
+
+        for item in items_to_delete {
+            // Delete file from store if requested
+            if delete_files {
+                let store_path = self.content_store_path(paths, item.content_type, &item.hash);
+                if store_path.exists() {
+                    if let Err(e) = fs::remove_file(&store_path) {
+                        result.errors.push(format!("Failed to delete {}: {}", item.name, e));
+                        continue;
+                    }
+                }
+            }
+
+            // Delete from library database
+            match self.delete_item(item.id) {
+                Ok(true) => {
+                    result.freed_bytes += item.file_size.unwrap_or(0) as u64;
+                    result.deleted_count += 1;
+                    result.items.push(item);
+                }
+                Ok(false) => {
+                    result.errors.push(format!("Item {} not found in database", item.name));
+                }
+                Err(e) => {
+                    result.errors.push(format!("Failed to delete {} from library: {}", item.name, e));
                 }
             }
         }
