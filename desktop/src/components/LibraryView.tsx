@@ -2,11 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import clsx from "clsx";
 import { useAppStore } from "../store";
 import { SkinHead } from "./SkinThumbnail";
+import { ContentItemRow } from "./ContentItemRow";
+import { PlatformIcon, PLATFORM_COLORS, type Platform } from "./PlatformIcon";
 import type { LibraryItem, LibraryTag, LibraryStats, LibraryFilter, LibraryImportResult, LibraryContentType } from "../types";
-import { formatFileSize, formatContentName, formatFileName } from "../utils";
+import { formatFileSize, formatContentName, formatFileName, formatVersion } from "../utils";
 
 // Extended library item with resolved skin URL for skins
 interface LibraryItemWithUrl extends LibraryItem {
