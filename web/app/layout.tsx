@@ -15,13 +15,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://shard.sh"),
+  metadataBase: new URL("https://shard.thomas.md"),
   title: {
-    default: "Shard Launcher",
+    default: "Shard Launcher | Reproducible Minecraft launcher with a deduplicated library",
     template: "%s | Shard Launcher",
   },
   description:
-    "A minimal, content-addressed Minecraft launcher focused on stability and reproducibility. One library. Infinite profiles.",
+    "Open-source Minecraft launcher with declarative profiles, content-addressed storage, and Modrinth/CurseForge integration. CLI and desktop.",
   applicationName: "Shard Launcher",
   generator: "Next.js",
   keywords: [
@@ -47,17 +47,17 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Shard Launcher",
     description:
-      "A minimal, content-addressed Minecraft launcher. One library. Infinite profiles.",
+      "Open-source Minecraft launcher with declarative profiles, content-addressed storage, and Modrinth/CurseForge integration.",
     creator: "@music_music_yo",
   },
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://shard.sh",
+    url: "https://shard.thomas.md",
     siteName: "Shard Launcher",
     title: "Shard Launcher",
     description:
-      "A minimal, content-addressed Minecraft launcher focused on stability and reproducibility. One library. Infinite profiles.",
+      "Open-source Minecraft launcher with declarative profiles, content-addressed storage, and Modrinth/CurseForge integration. CLI and desktop.",
   },
   icons: {
     icon: [

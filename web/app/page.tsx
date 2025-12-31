@@ -218,7 +218,7 @@ export default function HomePage() {
             {/* Download buttons with premium styling */}
             <div className="flex flex-wrap items-center justify-center gap-3 mb-12">
               <Link
-                href="https://github.com/Th0rgal/shard/releases/latest"
+                href="/download"
                 className="inline-flex items-center gap-2 rounded-lg btn-primary px-5 py-2.5 text-sm font-medium"
               >
                 <DownloadIcon className="h-4 w-4" />
