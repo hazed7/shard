@@ -22,10 +22,70 @@ const SCREENSHOTS = [
 const ROTATION_INTERVAL = 5000; // 5 seconds per slide
 
 /**
+ * Floating navigation button component
+ */
+interface NavButtonProps {
+  direction: "left" | "right";
+  onClick: () => void;
+  visible: boolean;
+}
+
+function NavButton({ direction, onClick, visible }: NavButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={`nav-button nav-button-${direction} ${visible ? "visible" : ""}`}
+      aria-label={direction === "left" ? "Previous slide" : "Next slide"}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {direction === "left" ? (
+          <path d="M15 18l-6-6 6-6" />
+        ) : (
+          <path d="M9 18l6-6-6-6" />
+        )}
+      </svg>
+    </button>
+  );
+}
+
+/**
+ * Floating slide indicator dots
+ */
+interface SlideIndicatorProps {
+  total: number;
+  current: number;
+  onGoTo: (index: number) => void;
+  labels: string[];
+}
+
+function SlideIndicator({ total, current, onGoTo, labels }: SlideIndicatorProps) {
+  return (
+    <div className="slide-indicator">
+      {Array.from({ length: total }).map((_, i) => (
+        <button
+          key={i}
+          onClick={() => onGoTo(i)}
+          className={`indicator-dot ${i === current ? "active" : ""}`}
+          aria-label={`View ${labels[i]}`}
+          title={labels[i]}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
  * LauncherPreview component
  *
  * Displays a rotating carousel of Shard Launcher screenshots.
- * Auto-advances every 5 seconds, with manual navigation via dots.
+ * Auto-advances every 5 seconds, with floating navigation buttons and dots.
  */
 export function LauncherPreview() {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -74,6 +134,37 @@ export function LauncherPreview() {
     setTimeout(() => setIsPaused(false), 10000);
   }, []);
 
+  const goToPrevious = useCallback(() => {
+    const currentValidIndex = validIndices.indexOf(currentIndex);
+    const prevValidIndex = currentValidIndex > 0 ? currentValidIndex - 1 : validIndices.length - 1;
+    goToSlide(validIndices[prevValidIndex]);
+  }, [currentIndex, validIndices, goToSlide]);
+
+  const goToNext = useCallback(() => {
+    const currentValidIndex = validIndices.indexOf(currentIndex);
+    const nextValidIndex = (currentValidIndex + 1) % validIndices.length;
+    goToSlide(validIndices[nextValidIndex]);
+  }, [currentIndex, validIndices, goToSlide]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") {
+        goToPrevious();
+      } else if (e.key === "ArrowRight") {
+        goToNext();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [goToPrevious, goToNext]);
+
+  // Derived state for navigation visibility
+  const currentValidIndex = validIndices.indexOf(currentIndex);
+  const isFirstSlide = currentValidIndex === 0;
+  const isLastSlide = currentValidIndex === validIndices.length - 1;
+
   if (!hasValidScreenshots) {
     return (
       <div className="launcher-preview-container">
@@ -111,22 +202,31 @@ export function LauncherPreview() {
                 onError={() => handleImageError(index)}
               />
             ))}
-          </div>
 
-          {/* Navigation dots */}
-          {validIndices.length > 1 && (
-            <div className="launcher-nav">
-              {validIndices.map((index) => (
-                <button
-                  key={index}
-                  className={`launcher-dot ${currentIndex === index ? "active" : ""}`}
-                  onClick={() => goToSlide(index)}
-                  aria-label={`View ${SCREENSHOTS[index].label}`}
-                  title={SCREENSHOTS[index].label}
+            {/* Floating navigation buttons */}
+            {validIndices.length > 1 && (
+              <>
+                <NavButton
+                  direction="left"
+                  onClick={goToPrevious}
+                  visible={!isFirstSlide}
                 />
-              ))}
-            </div>
-          )}
+                <NavButton
+                  direction="right"
+                  onClick={goToNext}
+                  visible={!isLastSlide}
+                />
+
+                {/* Floating slide indicator */}
+                <SlideIndicator
+                  total={validIndices.length}
+                  current={currentValidIndex}
+                  onGoTo={(i) => goToSlide(validIndices[i])}
+                  labels={validIndices.map(i => SCREENSHOTS[i].label)}
+                />
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -172,42 +272,140 @@ const styles = `
     opacity: 1;
   }
 
-  .launcher-nav {
-    position: relative;
+  /* Floating navigation buttons */
+  :global(.nav-button) {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 248, 240, 0.1);
+    background: rgba(18, 17, 16, 0.6);
+    backdrop-filter: blur(12px);
+    color: rgba(255, 248, 240, 0.7);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s ease-out;
+  }
+
+  :global(.nav-button.visible) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  :global(.nav-button:hover) {
+    background: rgba(18, 17, 16, 0.8);
+    color: rgba(255, 248, 240, 1);
+    transform: translateY(-50%) scale(1.1);
+    border-color: rgba(232, 168, 85, 0.3);
+  }
+
+  :global(.nav-button:active) {
+    transform: translateY(-50%) scale(0.95);
+    background: rgba(232, 168, 85, 0.2);
+    border-color: rgba(232, 168, 85, 0.5);
+  }
+
+  :global(.nav-button svg) {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.2s ease;
+  }
+
+  :global(.nav-button:hover svg) {
+    transform: translateX(var(--arrow-offset, 0));
+  }
+
+  :global(.nav-button-left) {
+    left: 12px;
+    --arrow-offset: -2px;
+  }
+
+  :global(.nav-button-right) {
+    right: 12px;
+    --arrow-offset: 2px;
+  }
+
+  /* Floating slide indicator */
+  :global(.slide-indicator) {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 10;
     display: flex;
-    justify-content: center;
     gap: 8px;
-    padding: 12px;
-    background: rgba(18, 17, 16, 0.95);
-    backdrop-filter: blur(8px);
-    border-top: 1px solid rgba(255, 248, 240, 0.06);
+    padding: 8px 12px;
+    background: rgba(18, 17, 16, 0.7);
+    backdrop-filter: blur(12px);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 248, 240, 0.06);
   }
 
-  .launcher-dot {
-    width: 8px;
-    height: 8px;
+  :global(.indicator-dot) {
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     border: none;
-    background: rgba(255, 248, 240, 0.2);
+    background: rgba(255, 248, 240, 0.3);
     cursor: pointer;
-    transition: all 0.2s ease;
     padding: 0;
+    transition: all 0.3s ease-out;
   }
 
-  .launcher-dot:hover {
-    background: rgba(255, 248, 240, 0.4);
+  :global(.indicator-dot:hover) {
+    background: rgba(255, 248, 240, 0.5);
   }
 
-  .launcher-dot.active {
+  :global(.indicator-dot.active) {
+    width: 20px;
+    border-radius: 3px;
     background: rgb(232, 168, 85);
-    width: 24px;
-    border-radius: 4px;
+    box-shadow: 0 0 10px rgba(232, 168, 85, 0.5);
   }
 
   @media (max-width: 640px) {
     .launcher-body {
       aspect-ratio: 1728 / 1328;
+    }
+
+    :global(.nav-button) {
+      width: 32px;
+      height: 32px;
+    }
+
+    :global(.nav-button svg) {
+      width: 16px;
+      height: 16px;
+    }
+
+    :global(.nav-button-left) {
+      left: 8px;
+    }
+
+    :global(.nav-button-right) {
+      right: 8px;
+    }
+
+    :global(.slide-indicator) {
+      bottom: 12px;
+      padding: 6px 10px;
+      gap: 6px;
+    }
+
+    :global(.indicator-dot) {
+      width: 5px;
+      height: 5px;
+    }
+
+    :global(.indicator-dot.active) {
+      width: 16px;
     }
   }
 `;
