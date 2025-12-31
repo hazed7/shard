@@ -125,6 +125,9 @@ fn resolve_version_id(paths: &Paths, mc_version: &str, loader: Option<&Loader>) 
         None => Ok(mc_version.to_string()),
         Some(loader) => match loader.loader_type.as_str() {
             "fabric" => ensure_fabric_profile(paths, mc_version, &loader.version),
+            "quilt" => ensure_quilt_profile(paths, mc_version, &loader.version),
+            "neoforge" => ensure_neoforge_profile(paths, mc_version, &loader.version),
+            "forge" => ensure_forge_profile(paths, mc_version, &loader.version),
             other => bail!("unsupported loader type: {other}"),
         },
     }
@@ -150,6 +153,133 @@ fn ensure_fabric_profile(paths: &Paths, mc_version: &str, loader_version: &str) 
         })?;
     }
     Ok(id.to_string())
+}
+
+fn ensure_quilt_profile(paths: &Paths, mc_version: &str, loader_version: &str) -> Result<String> {
+    // Quilt uses a similar API structure to Fabric
+    let url = format!(
+        "https://meta.quiltmc.org/v3/versions/loader/{mc_version}/{loader_version}/profile/json"
+    );
+    let profile_json = download_json(&url)?;
+    let id = profile_json
+        .get("id")
+        .and_then(|v| v.as_str())
+        .context("quilt profile missing id")?;
+    let target = paths.minecraft_version_json(id);
+    if !target.exists() {
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create version dir: {}", parent.display()))?;
+        }
+        fs::write(&target, serde_json::to_string_pretty(&profile_json)?).with_context(|| {
+            format!("failed to write quilt version json: {}", target.display())
+        })?;
+    }
+    Ok(id.to_string())
+}
+
+fn ensure_neoforge_profile(paths: &Paths, mc_version: &str, loader_version: &str) -> Result<String> {
+    // NeoForge version format: just the loader version (e.g., "21.4.156")
+    // The installer JAR is at: maven.neoforged.net/releases/net/neoforged/neoforge/{version}/neoforge-{version}-installer.jar
+    // Note: loader_version should NOT contain the MC version prefix
+
+    let id = format!("neoforge-{loader_version}");
+    let target = paths.minecraft_version_json(&id);
+
+    if target.exists() {
+        return Ok(id);
+    }
+
+    // Download installer JAR and extract version.json
+    let installer_url = format!(
+        "https://maven.neoforged.net/releases/net/neoforged/neoforge/{loader_version}/neoforge-{loader_version}-installer.jar"
+    );
+
+    let installer_path = paths.cache_downloads.join(format!("neoforge-{loader_version}-installer.jar"));
+    download_with_sha1(&installer_url, &installer_path, None)?;
+
+    // Extract version.json from the installer JAR
+    let profile_json = extract_version_json_from_jar(&installer_path, "version.json")
+        .with_context(|| format!("failed to extract version.json from NeoForge installer"))?;
+
+    // Modify the profile to set proper inheritance and ID
+    let mut profile: Value = serde_json::from_str(&profile_json)?;
+    profile["id"] = serde_json::json!(id);
+    if profile.get("inheritsFrom").is_none() {
+        profile["inheritsFrom"] = serde_json::json!(mc_version);
+    }
+
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create version dir: {}", parent.display()))?;
+    }
+    fs::write(&target, serde_json::to_string_pretty(&profile)?).with_context(|| {
+        format!("failed to write neoforge version json: {}", target.display())
+    })?;
+
+    Ok(id)
+}
+
+fn ensure_forge_profile(paths: &Paths, mc_version: &str, loader_version: &str) -> Result<String> {
+    // Forge version format: MC-ForgeVersion (e.g., "1.20.1-47.3.0")
+    let version_id = if loader_version.contains('-') {
+        loader_version.to_string()
+    } else {
+        format!("{mc_version}-{loader_version}")
+    };
+
+    let id = format!("forge-{version_id}");
+    let target = paths.minecraft_version_json(&id);
+
+    if target.exists() {
+        return Ok(id);
+    }
+
+    // Download installer JAR and extract version.json
+    // Forge uses a slightly different Maven path structure
+    let installer_url = format!(
+        "https://maven.minecraftforge.net/net/minecraftforge/forge/{version_id}/forge-{version_id}-installer.jar"
+    );
+
+    let installer_path = paths.cache_downloads.join(format!("forge-{version_id}-installer.jar"));
+    download_with_sha1(&installer_url, &installer_path, None)?;
+
+    // Extract version.json from the installer JAR
+    let profile_json = extract_version_json_from_jar(&installer_path, "version.json")
+        .with_context(|| format!("failed to extract version.json from Forge installer"))?;
+
+    // Modify the profile to set proper inheritance and ID
+    let mut profile: Value = serde_json::from_str(&profile_json)?;
+    profile["id"] = serde_json::json!(id);
+    if profile.get("inheritsFrom").is_none() {
+        profile["inheritsFrom"] = serde_json::json!(mc_version);
+    }
+
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create version dir: {}", parent.display()))?;
+    }
+    fs::write(&target, serde_json::to_string_pretty(&profile)?).with_context(|| {
+        format!("failed to write forge version json: {}", target.display())
+    })?;
+
+    Ok(id)
+}
+
+fn extract_version_json_from_jar(jar_path: &Path, json_name: &str) -> Result<String> {
+    let file = fs::File::open(jar_path)
+        .with_context(|| format!("failed to open installer jar: {}", jar_path.display()))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .with_context(|| format!("failed to read installer jar: {}", jar_path.display()))?;
+
+    let mut version_json = archive.by_name(json_name)
+        .with_context(|| format!("{} not found in installer jar", json_name))?;
+
+    let mut contents = String::new();
+    version_json.read_to_string(&mut contents)
+        .with_context(|| format!("failed to read {} from installer", json_name))?;
+
+    Ok(contents)
 }
 
 #[derive(Clone)]
