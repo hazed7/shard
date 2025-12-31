@@ -5,9 +5,10 @@ export default {
     title: "Getting Started",
   },
   "getting-started": "Installation",
-  "-- Concepts": {
+  faq: "FAQ",
+  "-- How It Works": {
     type: "separator",
-    title: "Concepts",
+    title: "How It Works",
   },
   concepts: "Core Concepts",
   "-- Development": {

@@ -42,19 +42,89 @@ Shard is a Minecraft launcher that treats your game setup like code: **declarati
 
 ## Installation
 
-### From Source
+### Prerequisites
+
+- **Rust** (1.75+) — Install via [rustup.rs](https://rustup.rs)
+- **Bun** (or Node.js 18+) — For the desktop UI frontend
+- **Platform tools:**
+  - macOS: Xcode Command Line Tools (`xcode-select --install`)
+  - Linux: `build-essential`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`
+  - Windows: Visual Studio Build Tools with C++ workload
+
+### Build from Source
 
 ```bash
-# Clone and build
+# Clone the repository
 git clone https://github.com/Th0rgal/shard.git
 cd shard
+
+# Build CLI only
+cd launcher
 cargo build --release
+# Binary: target/release/shard
 
-# Run CLI
-./target/release/shard --help
+# Build Desktop App
+cd desktop
+bun install              # Install frontend dependencies
+cargo tauri build        # Build production app
+# App bundle: desktop/src-tauri/target/release/bundle/
+```
 
-# Run Desktop UI
-cd ui && cargo tauri build --release
+### Install or Update
+
+**CLI (all platforms):**
+```bash
+# Install to ~/.local/bin (add to PATH if needed)
+mkdir -p ~/.local/bin
+cp target/release/shard ~/.local/bin/
+
+# Or install system-wide (requires sudo)
+sudo cp target/release/shard /usr/local/bin/
+
+# Verify installation
+shard --version
+```
+
+**Desktop App (macOS):**
+```bash
+# The app bundle is at:
+# target/release/bundle/macos/Shard Launcher.app
+
+# Install to Applications (replaces existing)
+rm -rf "/Applications/Shard Launcher.app"
+cp -r "target/release/bundle/macos/Shard Launcher.app" /Applications/
+
+# Or open directly
+open "target/release/bundle/macos/Shard Launcher.app"
+```
+
+**Desktop App (Linux):**
+```bash
+# AppImage (portable)
+chmod +x desktop/src-tauri/target/release/bundle/appimage/shard_*.AppImage
+./desktop/src-tauri/target/release/bundle/appimage/shard_*.AppImage
+
+# Or install .deb package
+sudo dpkg -i desktop/src-tauri/target/release/bundle/deb/shard_*.deb
+```
+
+**Desktop App (Windows):**
+```powershell
+# Run the MSI installer
+desktop\src-tauri\target\release\bundle\msi\Shard_*.msi
+
+# Or run the executable directly
+desktop\src-tauri\target\release\Shard.exe
+```
+
+### Development Mode
+
+```bash
+# Run CLI in development
+cd launcher && cargo run -- --help
+
+# Run Desktop App with hot reload
+cd desktop && bun install && cargo tauri dev
 ```
 
 ## Quick Start

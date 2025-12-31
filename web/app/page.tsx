@@ -3,48 +3,17 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  RiDownloadLine,
   RiGithubFill,
+  RiDiscordFill,
   RiBookOpenLine,
   RiArrowRightLine,
-  RiArrowDownSLine,
   RiMenuLine,
   RiCloseLine,
-  RiStackLine,
   RiShieldCheckLine,
-  RiTerminalLine,
   RiAppleFill,
+  RiSaveLine,
 } from "@remixicon/react";
 import { LauncherPreview } from "@/components/launcher-hero";
-
-// FAQ Item Component
-function FaqItem({
-  question,
-  children,
-}: {
-  question: string;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="border-b border-[rgb(var(--border))]">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between py-4 text-left font-medium text-[rgb(var(--foreground))] hover:text-[rgb(var(--accent))] transition-colors"
-      >
-        <span className="text-sm">{question}</span>
-        <RiArrowDownSLine
-          className={`h-4 w-4 text-[rgb(var(--foreground-tertiary))] transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open && (
-        <div className="pb-4 text-sm text-[rgb(var(--foreground-secondary))] leading-relaxed">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // Feature Card Component
 function FeatureCard({
@@ -93,6 +62,12 @@ export default function HomePage() {
               GitHub
             </Link>
             <Link
+              href="https://discord.gg/2ng6q3JNQ7"
+              className="text-xs font-medium text-[rgb(var(--foreground-secondary))] hover:text-[rgb(var(--foreground))] transition-colors"
+            >
+              Discord
+            </Link>
+            <Link
               href="/docs"
               className="text-xs font-medium text-[rgb(var(--foreground-secondary))] hover:text-[rgb(var(--foreground))] transition-colors"
             >
@@ -135,6 +110,14 @@ export default function HomePage() {
                 GitHub
               </Link>
               <Link
+                href="https://discord.gg/2ng6q3JNQ7"
+                className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium text-[rgb(var(--foreground-secondary))] hover:text-[rgb(var(--foreground))] hover:bg-[rgb(var(--foreground))]/5 transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <RiDiscordFill className="h-4 w-4" />
+                Discord
+              </Link>
+              <Link
                 href="/docs"
                 className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium text-[rgb(var(--foreground-secondary))] hover:text-[rgb(var(--foreground))] hover:bg-[rgb(var(--foreground))]/5 transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
@@ -164,7 +147,7 @@ export default function HomePage() {
               A Minecraft Launcher Built Different
             </h1>
             <p className="text-lg text-[rgb(var(--foreground-secondary))] max-w-2xl mx-auto mb-8">
-              Minimal, content-addressed, and focused on stability. Manage profiles, mods, and resource packs with zero duplication.
+              Your mods, organized. Your disk space, respected.
             </p>
 
             {/* Download buttons */}
@@ -177,11 +160,11 @@ export default function HomePage() {
                 Download for macOS
               </Link>
               <Link
-                href="https://github.com/Th0rgal/shard"
+                href="https://thomas.md/beta"
                 className="inline-flex items-center gap-2 rounded-md border border-[rgb(var(--border))] surface-1 px-5 py-2.5 text-sm font-medium text-[rgb(var(--foreground-secondary))] hover:border-[rgb(var(--border-elevated))] hover:text-[rgb(var(--foreground))] transition-colors"
               >
-                <RiGithubFill className="h-4 w-4" />
-                View Source
+                <RiArrowRightLine className="h-4 w-4" />
+                Join the Beta
               </Link>
             </div>
           </div>
@@ -201,70 +184,20 @@ export default function HomePage() {
             </h2>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3 max-w-3xl mx-auto">
+          <div className="grid gap-4 md:grid-cols-2 max-w-2xl mx-auto">
             <FeatureCard
-              icon={RiStackLine}
-              title="Content Deduplication"
-              description="SHA-256 content-addressed storage means mods are never duplicated across profiles. Save disk space automatically."
+              icon={RiSaveLine}
+              title="Save Disk Space"
+              description="Mods are stored once and shared across profiles. No more duplicate files eating up your drive."
             />
             <FeatureCard
               icon={RiShieldCheckLine}
-              title="Stable & Reproducible"
-              description="Declarative profile manifests ensure your setup works the same way every time. No magic state."
-            />
-            <FeatureCard
-              icon={RiTerminalLine}
-              title="CLI-First Design"
-              description="Everything can be scripted. The GUI is optional; the CLI is the source of truth."
+              title="Always Works"
+              description="Your setup is saved as a profile. Share it, back it up, restore it—it just works."
             />
           </div>
         </section>
 
-        {/* FAQ Section */}
-        <section className="mx-auto max-w-2xl px-4 py-12">
-          <div className="text-center mb-8">
-            <h2 className="text-xl font-semibold text-[rgb(var(--foreground))]">
-              Frequently Asked Questions
-            </h2>
-            <p className="mt-2 text-sm text-[rgb(var(--foreground-secondary))]">
-              Have another question?{" "}
-              <Link
-                href="https://github.com/Th0rgal/shard/issues"
-                className="text-[rgb(var(--accent))] hover:text-[rgb(var(--accent-hover))]"
-              >
-                Open an issue
-              </Link>
-            </p>
-          </div>
-
-          <div className="rounded-lg border border-[rgb(var(--border))] surface-1 px-4">
-            <FaqItem question="What platforms are supported?">
-              Currently Shard is available for macOS. Windows and Linux support is planned for future releases.
-            </FaqItem>
-            <FaqItem question="Does it support modded Minecraft?">
-              Yes! Shard supports Fabric, Forge, and NeoForge loaders. You can browse and install mods from Modrinth and CurseForge directly within the launcher.
-            </FaqItem>
-            <FaqItem question="How does content deduplication work?">
-              When you add a mod or resource pack, Shard computes its SHA-256 hash and stores it in a content-addressed store. If another profile uses the same mod, it simply references the existing file. No copies are made.
-            </FaqItem>
-            <FaqItem question="Can I use my existing Minecraft account?">
-              Yes, Shard uses Microsoft OAuth authentication. Your existing Microsoft account works seamlessly, and you can add multiple accounts.
-            </FaqItem>
-            <FaqItem question="Is Shard open source?">
-              Yes, Shard is fully open source. The core library is written in Rust, and the desktop app uses Tauri with React. See the{" "}
-              <Link
-                href="https://github.com/Th0rgal/shard"
-                className="text-[rgb(var(--accent))] hover:underline"
-              >
-                GitHub repository
-              </Link>{" "}
-              for the source code.
-            </FaqItem>
-            <FaqItem question="Where is my data stored?">
-              All data is stored locally in <code className="px-1.5 py-0.5 bg-[rgb(var(--background-tertiary))] rounded text-xs">~/.shard/</code>. This includes profiles, the content store, Minecraft data, and your account tokens.
-            </FaqItem>
-          </div>
-        </section>
       </main>
 
       {/* Footer */}

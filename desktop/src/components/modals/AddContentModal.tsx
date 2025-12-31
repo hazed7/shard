@@ -160,7 +160,7 @@ export function AddContentModal({ open, kind, onClose, onAddFromLibrary }: AddCo
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer.files);
-    const paths = files.map(f => f.path || (f as File & { path?: string }).path).filter(Boolean) as string[];
+    const paths = files.map(f => (f as File & { path?: string }).path).filter((p): p is string => !!p);
 
     if (paths.length > 0) {
       void handleImport(paths);
@@ -283,7 +283,7 @@ export function AddContentModal({ open, kind, onClose, onAddFromLibrary }: AddCo
                   {item.source_platform && (
                     <>
                       <span className="dot">·</span>
-                      <PlatformIcon platform={item.source_platform as "modrinth" | "curseforge" | "local"} size={12} />
+                      <PlatformIcon platform={item.source_platform as "modrinth" | "curseforge" | "local"} size="sm" />
                     </>
                   )}
                 </span>
@@ -311,7 +311,7 @@ export function AddContentModal({ open, kind, onClose, onAddFromLibrary }: AddCo
                 <span className="add-content-item-meta">
                   {item.downloads.toLocaleString()} downloads
                   <span className="dot">·</span>
-                  <PlatformIcon platform={item.platform} size={12} />
+                  <PlatformIcon platform={item.platform} size="sm" />
                 </span>
               </div>
               {selectedStoreItem?.id === item.id && (

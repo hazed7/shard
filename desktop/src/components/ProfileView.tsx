@@ -375,7 +375,7 @@ export function ProfileView({
           onClick={onLaunch}
           disabled={!activeAccount || isWorking || !!launchStatus}
         >
-          {launchStatus ? "Queued" : "Launch"}
+          {launchStatus ? launchStatus.stage.charAt(0).toUpperCase() + launchStatus.stage.slice(1) : "Launch"}
         </button>
       </div>
 

@@ -7,23 +7,30 @@
    BASE COLORS & VARIABLES
    ============================================ */
 
-:root {
-  --nextra-primary-hue: 36deg; /* Warm amber */
-  --nextra-primary-saturation: 80%;
-}
-
-html[class~="dark"] {
-  --nextra-bg: 12, 11, 10; /* #0c0b0a */
-  --nextra-primary-hue: 36deg;
+/* Force dark mode regardless of class or browser settings */
+:root,
+html,
+html.dark,
+html.light,
+html[class~="dark"],
+html[class~="light"],
+html[data-theme="light"],
+html[data-theme="dark"] {
+  --nextra-primary-hue: 36deg !important; /* Warm amber */
+  --nextra-primary-saturation: 80% !important;
+  --nextra-bg: 12, 11, 10 !important; /* #0c0b0a */
+  color-scheme: dark !important;
+  background-color: #0c0b0a !important;
 }
 
 /* ============================================
    LAYOUT & STRUCTURE
    ============================================ */
 
+html,
+body,
 .nextra-nav-container,
-.nextra-sidebar-container,
-body {
+.nextra-sidebar-container {
   background-color: rgb(12, 11, 10) !important;
 }
 
@@ -70,7 +77,15 @@ main.nextra-content {
   font-size: 1.5rem;
   margin-top: 2.5rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(255, 248, 240, 0.06);
+  border-bottom: 1px solid rgba(255, 248, 240, 0.06) !important;
+}
+
+/* Override any bright white borders from Nextra light mode */
+h2,
+.nextra-content h2,
+article h2 {
+  border-bottom-color: rgba(255, 248, 240, 0.06) !important;
+  border-color: rgba(255, 248, 240, 0.06) !important;
 }
 
 .nextra-content h3 {
@@ -108,7 +123,7 @@ aside a,
 [class*="sidebar"] a,
 nav a:not(.nextra-nav-container a) {
   color: rgba(245, 240, 235, 0.6) !important;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   transition: all 150ms ease;
 }
 
@@ -116,7 +131,7 @@ nav a:not(.nextra-nav-container a) {
 aside a:hover,
 [class*="sidebar"] a:hover {
   color: rgba(245, 240, 235, 0.9) !important;
-  background-color: rgba(255, 248, 240, 0.04) !important;
+  background-color: rgba(255, 248, 240, 0.03) !important;
 }
 
 .nextra-sidebar-container a[data-active="true"],
@@ -128,7 +143,9 @@ aside a.active,
 li.active > a,
 a[aria-current="page"] {
   color: rgba(245, 240, 235, 0.95) !important;
-  background-color: rgba(232, 168, 85, 0.15) !important;
+  background-color: rgba(232, 168, 85, 0.08) !important;
+  border-left: 2px solid rgb(232, 168, 85) !important;
+  margin-left: -2px;
 }
 
 .nextra-sidebar-container .nextra-menu-title,
@@ -435,20 +452,26 @@ aside .active,
 [class*="sidebar"] a[data-active="true"],
 [class*="sidebar"] .active {
   color: rgba(245, 240, 235, 0.95) !important;
-  background-color: rgba(232, 168, 85, 0.12) !important;
+  background-color: rgba(232, 168, 85, 0.08) !important;
+  border-left: 2px solid rgb(232, 168, 85) !important;
 }
 
 aside a:hover,
 [class*="sidebar"] a:hover {
   color: rgba(245, 240, 235, 0.9) !important;
-  background-color: rgba(255, 248, 240, 0.04) !important;
+  background-color: rgba(255, 248, 240, 0.03) !important;
 }
 
+/* Ensure primary color is always amber */
 :root,
 html,
-html.dark {
+html.dark,
+html[class~="dark"],
+html.light,
+html[class~="light"] {
   --nextra-primary-hue: 36deg !important;
   --nextra-primary-saturation: 50% !important;
+  --nextra-bg: 12, 11, 10 !important;
 }
 
 /* ============================================
@@ -526,4 +549,50 @@ html.dark {
   .nextra-callout {
     padding: 0.75rem !important;
   }
+}
+
+/* ============================================
+   BRAVE / PRIVACY BROWSER FALLBACKS
+   Fix borders and separators for light mode fallback
+   ============================================ */
+
+/* Force all backgrounds dark */
+* {
+  --tw-bg-opacity: 1 !important;
+}
+
+/* Override any light mode styles from Nextra */
+[data-theme="light"],
+.light,
+html:not(.dark) {
+  --shiki-color-text: #f5f0eb !important;
+  --shiki-color-background: #0c0b0a !important;
+}
+
+/* Force all borders/separators to be subtle */
+hr,
+[class*="border"],
+h2,
+article h2,
+.nextra-content h2 {
+  border-color: rgba(255, 248, 240, 0.06) !important;
+}
+
+/* Force text colors for light mode fallback in Brave */
+article p,
+article li,
+article span,
+main p,
+main li,
+main span,
+.nextra-content p,
+.nextra-content li,
+.nextra-content span {
+  color: rgba(245, 240, 235, 0.7) !important;
+}
+
+article strong,
+main strong,
+.nextra-content strong {
+  color: rgba(245, 240, 235, 0.9) !important;
 }

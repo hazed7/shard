@@ -267,6 +267,11 @@ a {
   opacity: 0.85;
 }
 
+.sidebar-nav-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(232, 168, 85, 0.5);
+}
+
 .sidebar-nav-profile {
   padding-top: 8px;
   padding-bottom: 2px;

@@ -193,7 +193,7 @@ export function EditVersionModal({ open, onClose, mode }: EditVersionModalProps)
           onCancel={onClose}
           onSubmit={handleSubmit}
           submitLabel="Save"
-          isSubmitting={isSubmitting}
+          submitDisabled={isSubmitting}
         />
       </div>
 
