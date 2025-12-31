@@ -1022,39 +1022,30 @@ pub async fn start_log_watch(
     let paths = load_paths()?;
     let log_path = paths.instance_latest_log(&profile_id);
 
-    eprintln!("[logs] Starting log watch for profile '{}' at path: {:?}", profile_id, log_path);
-
     // Spawn background task to watch the log
     std::thread::spawn(move || {
         let mut watcher = LogWatcher::from_start(log_path.clone());
         let event_name = format!("log-entries-{}", sanitize_event_segment(&profile_id));
-        eprintln!("[logs] Watcher thread started, event name: {}", event_name);
 
         loop {
             // Read new entries
             match watcher.read_new() {
                 Ok(entries) if !entries.is_empty() => {
-                    eprintln!("[logs] Read {} new log entries", entries.len());
                     // Emit event with new log entries
-                    if let Err(e) = app.emit(&event_name, &entries) {
-                        eprintln!("[logs] Failed to emit log entries: {:?}", e);
+                    if app.emit(&event_name, &entries).is_err() {
                         break; // Window closed
                     }
                 }
                 Ok(_) => {
-                    // No new entries - check if file exists
-                    if !log_path.exists() {
-                        // File doesn't exist yet, that's fine
-                    }
+                    // No new entries
                 }
-                Err(e) => {
-                    eprintln!("[logs] Error reading log: {:?}", e);
+                Err(_) => {
+                    // Error reading log
                 }
             }
 
             std::thread::sleep(std::time::Duration::from_millis(250));
         }
-        eprintln!("[logs] Watcher thread exiting");
     });
 
     Ok(())

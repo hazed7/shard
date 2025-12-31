@@ -132,9 +132,10 @@ function App() {
     }
 
     if (launchStatus.stage === "running") {
+      // Only hide the banner, don't clear status while game is running
+      // This preserves the double-click prevention (if (launchStatus) return)
       hideTimerRef.current = setTimeout(() => {
         setLaunchHidden(true);
-        clearTimerRef.current = setTimeout(() => setLaunchStatus(null), 450);
       }, 3500);
     }
 
