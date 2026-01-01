@@ -3,6 +3,11 @@ name: Release publish automation
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.1.6)"
+        required: true
 
 permissions:
   contents: read
@@ -17,7 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${{ github.event.release.tag_name || inputs.tag || github.ref_name }}"
           VERSION="${TAG#v}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
@@ -123,9 +128,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${{ github.event.release.tag_name || inputs.tag || github.ref_name }}"
           VERSION="${TAG#v}"
-          DATE="$(jq -r '.release.published_at' "$GITHUB_EVENT_PATH" | cut -d'T' -f1)"
+          if jq -e '.release.published_at' "$GITHUB_EVENT_PATH" >/dev/null 2>&1; then
+            DATE="$(jq -r '.release.published_at' "$GITHUB_EVENT_PATH" | cut -d'T' -f1)"
+          else
+            DATE="$(date -u +%Y-%m-%d)"
+          fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "date=${DATE}" >> "$GITHUB_OUTPUT"
@@ -196,7 +205,7 @@ PY
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${{ github.event.release.tag_name || inputs.tag || github.ref_name }}"
           VERSION="${TAG#v}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
