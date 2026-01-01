@@ -166,12 +166,26 @@ jobs:
           # Note: tauri-action uses workspace root target dir, not desktop/src-tauri/target
           if [ "${{ matrix.platform }}" = "macos-latest" ]; then
             find target/${{ matrix.target }}/release/bundle -name "*.dmg" -exec cp {} renamed-artifacts/shard-launcher-${{ matrix.name }}.dmg \; 2>/dev/null || true
+            find target/${{ matrix.target }}/release/bundle -name "*.app.tar.gz" -exec cp {} renamed-artifacts/shard-launcher-${{ matrix.name }}.app.tar.gz \; 2>/dev/null || true
           elif [ "${{ matrix.platform }}" = "windows-latest" ]; then
             find target/${{ matrix.target }}/release/bundle -name "*.msi" -exec cp {} renamed-artifacts/shard-launcher-${{ matrix.name }}.msi \; 2>/dev/null || true
             find target/${{ matrix.target }}/release/bundle -name "*-setup.exe" -exec cp {} renamed-artifacts/shard-launcher-${{ matrix.name }}-setup.exe \; 2>/dev/null || true
           elif [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
             find target/${{ matrix.target }}/release/bundle -name "*.AppImage" -exec cp {} renamed-artifacts/shard-launcher-${{ matrix.name }}.AppImage \; 2>/dev/null || true
             find target/${{ matrix.target }}/release/bundle -name "*.deb" -exec cp {} renamed-artifacts/shard-launcher-${{ matrix.name }}.deb \; 2>/dev/null || true
+          fi
+
+      - name: Collect updater signatures
+        shell: bash
+        run: |
+          mkdir -p renamed-artifacts
+          if [ "${{ matrix.platform }}" = "macos-latest" ]; then
+            find target/${{ matrix.target }}/release/bundle -name "*.app.tar.gz.sig" -exec cp {} renamed-artifacts/shard-launcher-${{ matrix.name }}.app.tar.gz.sig \; 2>/dev/null || true
+          elif [ "${{ matrix.platform }}" = "windows-latest" ]; then
+            find target/${{ matrix.target }}/release/bundle -name "*.msi.sig" -exec cp {} renamed-artifacts/shard-launcher-${{ matrix.name }}.msi.sig \; 2>/dev/null || true
+            find target/${{ matrix.target }}/release/bundle -name "*-setup.exe.sig" -exec cp {} renamed-artifacts/shard-launcher-${{ matrix.name }}-setup.exe.sig \; 2>/dev/null || true
+          elif [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
+            find target/${{ matrix.target }}/release/bundle -name "*.AppImage.sig" -exec cp {} renamed-artifacts/shard-launcher-${{ matrix.name }}.AppImage.sig \; 2>/dev/null || true
           fi
 
       - name: Upload desktop artifacts
@@ -195,8 +209,48 @@ jobs:
       - name: Flatten artifacts
         run: |
           mkdir -p release-files
-          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.dmg" -o -name "*.msi" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} release-files/ \;
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.dmg" -o -name "*.msi" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.sig" \) -exec cp {} release-files/ \;
           ls -la release-files/
+
+      - name: Build updater manifest
+        working-directory: release-files
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          node - <<'NODE'
+          const fs = require("fs");
+
+          const tag = process.env.TAG;
+          const version = tag.startsWith("v") ? tag.slice(1) : tag;
+          const baseUrl = `https://github.com/th0rgal/shard/releases/download/${tag}`;
+
+          const readSig = (file) => fs.readFileSync(file, "utf8").trim();
+
+          const manifest = {
+            version,
+            notes: "",
+            platforms: {
+              "darwin-aarch64": {
+                url: `${baseUrl}/shard-launcher-macos-arm64.app.tar.gz`,
+                signature: readSig("shard-launcher-macos-arm64.app.tar.gz.sig")
+              },
+              "darwin-x86_64": {
+                url: `${baseUrl}/shard-launcher-macos-x64.app.tar.gz`,
+                signature: readSig("shard-launcher-macos-x64.app.tar.gz.sig")
+              },
+              "linux-x86_64": {
+                url: `${baseUrl}/shard-launcher-linux-x64.AppImage`,
+                signature: readSig("shard-launcher-linux-x64.AppImage.sig")
+              },
+              "windows-x86_64": {
+                url: `${baseUrl}/shard-launcher-windows-x64-setup.exe`,
+                signature: readSig("shard-launcher-windows-x64-setup.exe.sig")
+              }
+            }
+          };
+
+          fs.writeFileSync("latest.json", JSON.stringify(manifest, null, 2) + "\\n");
+          NODE
 
       - name: Generate checksums
         working-directory: release-files

@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef, useState, lazy, Suspense } from "react";
 import clsx from "clsx";
 import { invoke } from "@tauri-apps/api/core";
+import { check } from "@tauri-apps/plugin-updater";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -75,6 +76,7 @@ function App() {
   const [launchHidden, setLaunchHidden] = useState(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const updateCheckRef = useRef(false);
 
   // Content modal state
   const contentKind = useAppStore((s) => s.activeTab);
@@ -115,6 +117,23 @@ function App() {
       void unlisten.then((fn) => fn());
     };
   }, [setLaunchStatus, notify]);
+
+  // Background app update check (non-blocking)
+  useEffect(() => {
+    if (!isOnline || updateCheckRef.current) return;
+    updateCheckRef.current = true;
+    const run = async () => {
+      try {
+        const update = await check();
+        if (update) {
+          notify("Update available", `Version ${update.version} is ready to install in Settings → Updates`);
+        }
+      } catch {
+        // Ignore update errors during background check
+      }
+    };
+    void run();
+  }, [isOnline, notify]);
 
   // Auto-hide running banner after a short delay
   useEffect(() => {

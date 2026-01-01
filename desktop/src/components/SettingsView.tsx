@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { revealItemInDir, openUrl } from "@tauri-apps/plugin-opener";
+import { check } from "@tauri-apps/plugin-updater";
 import { useAppStore } from "../store";
 import type { StorageStats, UpdateCheckResult, ContentUpdate, JavaInstallation, PurgeResult } from "../types";
 import { formatFileSize } from "../utils";
@@ -24,6 +26,10 @@ export function SettingsView() {
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
   const [applyingUpdate, setApplyingUpdate] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [appUpdate, setAppUpdate] = useState<Awaited<ReturnType<typeof check>> | null>(null);
+  const [checkingAppUpdate, setCheckingAppUpdate] = useState(false);
+  const [downloadingAppUpdate, setDownloadingAppUpdate] = useState(false);
 
   // Java settings state
   const [javaInstallations, setJavaInstallations] = useState<JavaInstallation[]>([]);
@@ -69,6 +75,12 @@ export function SettingsView() {
     };
     load();
   }, [loadStats, loadAutoUpdate]);
+
+  useEffect(() => {
+    getVersion()
+      .then((version) => setAppVersion(version))
+      .catch(() => setAppVersion(null));
+  }, []);
 
   // Load Java installations when Java section is active
   useEffect(() => {
@@ -130,6 +142,35 @@ export function SettingsView() {
         await handleApplyUpdate(update);
       }
     }
+  };
+
+  const handleCheckAppUpdate = async () => {
+    setCheckingAppUpdate(true);
+    try {
+      const update = await check();
+      setAppUpdate(update);
+      if (update) {
+        notify("App update available", `Version ${update.version}`);
+      } else {
+        notify("Shard is up to date", `You're running ${appVersion ?? "the latest version"}`);
+      }
+    } catch (err) {
+      notify("App update check failed", String(err));
+    }
+    setCheckingAppUpdate(false);
+  };
+
+  const handleInstallAppUpdate = async () => {
+    if (!appUpdate) return;
+    setDownloadingAppUpdate(true);
+    try {
+      await appUpdate.downloadAndInstall();
+      notify("Update installed", "Restart Shard to finish updating");
+      setAppUpdate(null);
+    } catch (err) {
+      notify("Update failed", String(err));
+    }
+    setDownloadingAppUpdate(false);
   };
 
   const getStorageCategories = (): StorageCategory[] => {
@@ -499,6 +540,44 @@ export function SettingsView() {
                   <path d="M10 3v4l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
                 </svg>
+                <span>App Updates</span>
+              </div>
+
+              <div className="settings-row" style={{ alignItems: "center" }}>
+                <div className="settings-row-content">
+                  <div className="settings-row-title">Shard Launcher</div>
+                  <div className="settings-row-description">
+                    Version {appVersion ?? "—"}
+                    {appUpdate && ` • Update available: ${appUpdate.version}`}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleCheckAppUpdate}
+                  disabled={checkingAppUpdate}
+                >
+                  {checkingAppUpdate ? "Checking..." : "Check"}
+                </button>
+              </div>
+
+              {appUpdate && (
+                <button
+                  className="btn btn-primary"
+                  onClick={handleInstallAppUpdate}
+                  disabled={downloadingAppUpdate}
+                  style={{ width: "100%", marginTop: 12 }}
+                >
+                  {downloadingAppUpdate ? "Downloading..." : "Download & Install"}
+                </button>
+              )}
+            </section>
+
+            <section className="settings-card" style={{ marginBottom: 24 }}>
+              <div className="settings-card-header">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ opacity: 0.6 }}>
+                  <path d="M10 3v4l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
                 <span>Content Updates</span>
               </div>
 
@@ -590,7 +669,7 @@ export function SettingsView() {
                 </div>
                 <div className="about-details">
                   <div className="about-name">Shard</div>
-                  <div className="about-version">Version 0.1.0</div>
+                  <div className="about-version">Version {appVersion ?? "—"}</div>
                   <div className="about-description">
                     A minimal, clean, CLI-first Minecraft launcher focused on stability, reproducibility, and low duplication.
                   </div>

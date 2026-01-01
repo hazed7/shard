@@ -16,6 +16,7 @@
     "core:window:allow-unmaximize",
     "core:window:allow-is-maximized",
     "core:event:default",
+    "updater:default",
     "opener:default",
     "dialog:default"
   ]
