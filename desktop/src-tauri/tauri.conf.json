@@ -70,7 +70,7 @@
   "plugins": {
     "updater": {
       "endpoints": ["https://github.com/th0rgal/shard/releases/latest/download/latest.json"],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM5MTdFOEUwMzc5OTMyQjAKUldTd01wazM0T2dYT1JQczZEMzA1ejB3dzU1Vkt0Skx6M051T2U2ZGprR0dxY01LNlFKU1M4UHAK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhFRjA4MjMyRTA1RTA5MDMKUldRRENWN2dNb0x3amdmMm9xc2d1UkhxN3htNGFTY0ZQbDVmY0p2blA1dzR5QXdYYU9LQ0hwOEYK"
     },
     "deep-link": {
       "desktop": {
