@@ -7,7 +7,7 @@ use shard::java::{JavaInstallation, JavaValidation, detect_installations, valida
 use shard::library::{Library, LibraryItem, LibraryFilter, LibraryItemInput, LibraryContentType, LibraryStats, Tag, ImportResult, UnusedItemsSummary, PurgeResult};
 use shard::logs::{LogEntry, LogFile, LogWatcher, list_log_files, list_crash_reports, read_log_file, read_log_tail};
 use shard::minecraft::{LaunchPlan, prepare};
-use shard::ops::{finish_device_code_flow, parse_loader, resolve_input, resolve_launch_account};
+use shard::ops::{finish_device_code_flow, parse_loader, resolve_input, resolve_launch_account, ensure_fresh_account};
 use shard::paths::Paths;
 use shard::profile::{ContentRef, Loader, Profile, Runtime, clone_profile, create_profile, delete_profile, diff_profiles, list_profiles, load_profile, remove_mod, remove_resourcepack, remove_shaderpack, rename_profile, save_profile, upsert_mod, upsert_resourcepack, upsert_shaderpack};
 use shard::skin::{
@@ -494,14 +494,9 @@ impl From<LaunchPlan> for LaunchPlanDto {
 #[tauri::command]
 pub fn get_account_info_cmd(id: Option<String>) -> Result<AccountInfo, String> {
     let paths = load_paths()?;
-    let accounts = load_accounts(&paths).map_err(|e| e.to_string())?;
 
-    let target = id.or_else(|| accounts.active.clone())
-        .ok_or_else(|| "no account selected".to_string())?;
-
-    let account = accounts.accounts.iter()
-        .find(|a| a.uuid == target || a.username.to_lowercase() == target.to_lowercase())
-        .ok_or_else(|| "account not found".to_string())?;
+    // Ensure tokens are fresh before fetching profile
+    let account = ensure_fresh_account(&paths, id.clone()).map_err(|e| e.to_string())?;
 
     let profile = get_mc_profile(&account.minecraft.access_token).ok();
 

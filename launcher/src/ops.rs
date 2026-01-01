@@ -143,3 +143,56 @@ pub fn resolve_launch_account(paths: &Paths, account_id: Option<String>) -> Resu
         xuid: updated_account.xuid,
     })
 }
+
+/// Ensures the account's tokens are fresh, refreshing if needed.
+/// Returns the updated account with fresh Minecraft access token.
+pub fn ensure_fresh_account(paths: &Paths, account_id: Option<String>) -> Result<Account> {
+    let config = load_config(paths)?;
+    let client_id = config.msa_client_id.context(
+        "missing Microsoft client id; set SHARD_MS_CLIENT_ID or shard config set-client-id",
+    )?;
+    let client_secret = config.msa_client_secret.as_deref();
+
+    let mut accounts = load_accounts(paths)?;
+    let target = account_id
+        .or_else(|| accounts.active.clone())
+        .context("no account selected")?;
+
+    // Refresh MSA token if expired
+    {
+        let account = find_account_mut(&mut accounts, &target)
+            .with_context(|| format!("account not found: {target}"))?;
+        if account.msa.is_expired() {
+            let refreshed =
+                refresh_msa_token(&client_id, client_secret, &account.msa.refresh_token)?;
+            account.msa = MsaTokens {
+                access_token: refreshed.access_token,
+                refresh_token: refreshed.refresh_token,
+                expires_at: refreshed.expires_at,
+            };
+        }
+    }
+    save_accounts(paths, &accounts)?;
+
+    // Refresh Minecraft token if expired
+    let updated_account = {
+        let account = find_account_mut(&mut accounts, &target)
+            .with_context(|| format!("account not found: {target}"))?;
+
+        if account.minecraft.is_expired() {
+            let minecraft_auth = exchange_for_minecraft(&account.msa.access_token)?;
+            account.minecraft = MinecraftTokens {
+                access_token: minecraft_auth.access_token,
+                expires_at: minecraft_auth.expires_at,
+            };
+            account.username = minecraft_auth.username;
+            account.xuid = minecraft_auth.xuid;
+            account.uuid = minecraft_auth.uuid;
+        }
+
+        account.clone()
+    };
+
+    save_accounts(paths, &accounts)?;
+    Ok(updated_account)
+}

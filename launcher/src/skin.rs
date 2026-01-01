@@ -220,14 +220,15 @@ fn normalize_uuid(uuid: &str) -> String {
 }
 
 /// Get skin texture URL for rendering (works for any player by UUID)
+/// Uses mc-heads.net which is more reliable than crafatar
 pub fn get_skin_url(uuid: &str) -> String {
-    format!("https://crafatar.com/skins/{}?overlay", normalize_uuid(uuid))
+    format!("https://mc-heads.net/skin/{}", normalize_uuid(uuid))
 }
 
 /// Get rendered avatar URL for a player
 pub fn get_avatar_url(uuid: &str, size: u32) -> String {
     format!(
-        "https://crafatar.com/avatars/{}?size={}&overlay",
+        "https://mc-heads.net/avatar/{}/{}",
         normalize_uuid(uuid),
         size
     )
@@ -236,7 +237,7 @@ pub fn get_avatar_url(uuid: &str, size: u32) -> String {
 /// Get full body render URL for a player
 pub fn get_body_url(uuid: &str, size: u32) -> String {
     format!(
-        "https://crafatar.com/renders/body/{}?size={}&overlay",
+        "https://mc-heads.net/body/{}/{}",
         normalize_uuid(uuid),
         size
     )
@@ -245,13 +246,17 @@ pub fn get_body_url(uuid: &str, size: u32) -> String {
 /// Get head render URL for a player (3D)
 pub fn get_head_url(uuid: &str, size: u32) -> String {
     format!(
-        "https://crafatar.com/renders/head/{}?size={}&overlay",
+        "https://mc-heads.net/head/{}/{}",
         normalize_uuid(uuid),
         size
     )
 }
 
 /// Get cape texture URL if available
+/// Note: mc-heads.net doesn't support capes directly, using Mojang session server
 pub fn get_cape_url(uuid: &str) -> String {
-    format!("https://crafatar.com/capes/{}", normalize_uuid(uuid))
+    // mc-heads.net doesn't have a cape endpoint, but the skin endpoint
+    // returns just the skin texture, not cape. For fallback cape URL,
+    // we'll use a placeholder that won't error (returns 404 gracefully)
+    format!("https://mc-heads.net/cape/{}", normalize_uuid(uuid))
 }

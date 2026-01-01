@@ -11,6 +11,8 @@ fabricloader.log
 desktop/node_modules/
 desktop/dist/
 desktop/src-tauri/target/
+desktop/src-tauri/icons/Assets.car
+desktop/src-tauri/icons/.compiled-icon/
 
 # Website
 web/node_modules/
