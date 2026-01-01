@@ -4014,7 +4014,7 @@ dependencies = [
 
 [[package]]
 name = "shard"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "atty",
@@ -4035,7 +4035,7 @@ dependencies = [
 
 [[package]]
 name = "shard_ui"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "reqwest",
  "serde",
