@@ -3807,6 +3807,35 @@ a {
   gap: 4px;
 }
 
+.about-system-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.about-system-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.about-system-row:last-child {
+  border-bottom: none;
+}
+
+.about-system-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.about-system-value {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
 /* Badge variants */
 .badge-success {
   background: rgba(52, 211, 153, 0.2);

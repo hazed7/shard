@@ -1,6 +1,6 @@
 [package]
 name = "shard_ui"
-version = "0.1.6"
+version = "0.1.7"
 description = "Shard launcher UI"
 authors = ["you"]
 edition = "2021"
@@ -23,3 +23,4 @@ tauri-plugin-updater = "~2.0.0"
 
 shard = { path = "../../launcher" }
 reqwest = { version = "0.12.28", features = ["blocking"] }
+tauri-plugin-os = "2.3.2"
