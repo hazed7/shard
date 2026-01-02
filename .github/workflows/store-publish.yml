@@ -1,5 +1,5 @@
 name: Store publish
-# Publishes to AUR, Flathub, and Winget when a release is published
+# Publishes to AUR, Homebrew, Scoop, Flathub, and Winget when a release is published
 
 on:
   release:
@@ -136,21 +136,220 @@ jobs:
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: "Update to ${{ steps.release.outputs.tag }}"
 
+  homebrew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check secret
+        id: check
+        run: |
+          if [ -z "${{ secrets.PACKAGE_REPOS_TOKEN }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Collect release info
+        if: steps.check.outputs.skip != 'true'
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name || inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch SHA256SUMS
+        if: steps.check.outputs.skip != 'true'
+        id: hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.release.outputs.tag }}"
+          curl -fsSL "https://github.com/th0rgal/shard/releases/download/${TAG}/SHA256SUMS.txt" -o /tmp/SHA256SUMS.txt
+
+          # CLI hashes
+          CLI_MACOS_ARM64=$(grep 'shard-cli-macos-arm64.tar.gz$' /tmp/SHA256SUMS.txt | awk '{print $1}')
+          CLI_MACOS_X64=$(grep 'shard-cli-macos-x64.tar.gz$' /tmp/SHA256SUMS.txt | awk '{print $1}')
+          CLI_LINUX_X64=$(grep 'shard-cli-linux-x64.tar.gz$' /tmp/SHA256SUMS.txt | awk '{print $1}')
+
+          # Desktop hashes (DMG)
+          DESKTOP_MACOS_ARM64=$(grep 'shard-launcher-macos-arm64.dmg$' /tmp/SHA256SUMS.txt | awk '{print $1}')
+          DESKTOP_MACOS_X64=$(grep 'shard-launcher-macos-x64.dmg$' /tmp/SHA256SUMS.txt | awk '{print $1}')
+
+          echo "cli_macos_arm64=${CLI_MACOS_ARM64}" >> "$GITHUB_OUTPUT"
+          echo "cli_macos_x64=${CLI_MACOS_X64}" >> "$GITHUB_OUTPUT"
+          echo "cli_linux_x64=${CLI_LINUX_X64}" >> "$GITHUB_OUTPUT"
+          echo "desktop_macos_arm64=${DESKTOP_MACOS_ARM64}" >> "$GITHUB_OUTPUT"
+          echo "desktop_macos_x64=${DESKTOP_MACOS_X64}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Homebrew tap
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.PACKAGE_REPOS_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.release.outputs.tag }}"
+          VERSION="${{ steps.release.outputs.version }}"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/Th0rgal/homebrew-shard.git" homebrew-tap
+          cd homebrew-tap
+
+          # Update Formula/shard.rb
+          cat > Formula/shard.rb << EOF
+          class Shard < Formula
+            desc "A minimal, content-addressed Minecraft launcher"
+            homepage "https://shard.thomas.md"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/th0rgal/shard/releases/download/${TAG}/shard-cli-macos-arm64.tar.gz"
+                sha256 "${{ steps.hashes.outputs.cli_macos_arm64 }}"
+              else
+                url "https://github.com/th0rgal/shard/releases/download/${TAG}/shard-cli-macos-x64.tar.gz"
+                sha256 "${{ steps.hashes.outputs.cli_macos_x64 }}"
+              end
+            end
+
+            on_linux do
+              url "https://github.com/th0rgal/shard/releases/download/${TAG}/shard-cli-linux-x64.tar.gz"
+              sha256 "${{ steps.hashes.outputs.cli_linux_x64 }}"
+            end
+
+            def install
+              bin.install "shard"
+            end
+
+            test do
+              assert_match "shard", shell_output("#{bin}/shard --version")
+            end
+          end
+          EOF
+
+          # Update Casks/shard-launcher.rb
+          cat > Casks/shard-launcher.rb << EOF
+          cask "shard-launcher" do
+            version "${VERSION}"
+
+            on_arm do
+              url "https://github.com/th0rgal/shard/releases/download/${TAG}/shard-launcher-macos-arm64.dmg"
+              sha256 "${{ steps.hashes.outputs.desktop_macos_arm64 }}"
+            end
+
+            on_intel do
+              url "https://github.com/th0rgal/shard/releases/download/${TAG}/shard-launcher-macos-x64.dmg"
+              sha256 "${{ steps.hashes.outputs.desktop_macos_x64 }}"
+            end
+
+            name "Shard Launcher"
+            desc "A minimal, content-addressed Minecraft launcher"
+            homepage "https://shard.thomas.md"
+
+            app "Shard Launcher.app"
+
+            zap trash: [
+              "~/.shard",
+              "~/Library/Application Support/md.thomas.shard-launcher",
+              "~/Library/Caches/md.thomas.shard-launcher",
+              "~/Library/Preferences/md.thomas.shard-launcher.plist",
+            ]
+
+            livecheck do
+              url :url
+              strategy :github_latest
+            end
+          end
+          EOF
+
+          git add Formula/shard.rb Casks/shard-launcher.rb
+          git -c user.name="github-actions" -c user.email="github-actions@github.com" commit -m "Update to ${VERSION}" || echo "No changes to commit"
+          git push
+
+  scoop:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check secret
+        id: check
+        run: |
+          if [ -z "${{ secrets.PACKAGE_REPOS_TOKEN }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Collect release info
+        if: steps.check.outputs.skip != 'true'
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name || inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch SHA256SUMS
+        if: steps.check.outputs.skip != 'true'
+        id: hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.release.outputs.tag }}"
+          curl -fsSL "https://github.com/th0rgal/shard/releases/download/${TAG}/SHA256SUMS.txt" -o /tmp/SHA256SUMS.txt
+          WINDOWS_ZIP_HASH=$(grep 'shard-cli-windows-x64.zip$' /tmp/SHA256SUMS.txt | awk '{print $1}')
+          echo "windows_zip=${WINDOWS_ZIP_HASH}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Scoop bucket
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.PACKAGE_REPOS_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.release.outputs.tag }}"
+          VERSION="${{ steps.release.outputs.version }}"
+          HASH="${{ steps.hashes.outputs.windows_zip }}"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/Th0rgal/scoop-shard.git" scoop-bucket
+          cd scoop-bucket
+
+          # Update bucket/shard.json
+          cat > bucket/shard.json << EOF
+          {
+              "version": "${VERSION}",
+              "description": "A minimal, content-addressed Minecraft launcher (CLI)",
+              "homepage": "https://shard.thomas.md",
+              "license": "MIT",
+              "url": "https://github.com/th0rgal/shard/releases/download/${TAG}/shard-cli-windows-x64.zip",
+              "hash": "${HASH}",
+              "bin": "shard.exe",
+              "checkver": {
+                  "github": "https://github.com/th0rgal/shard"
+              },
+              "autoupdate": {
+                  "url": "https://github.com/th0rgal/shard/releases/download/v\$version/shard-cli-windows-x64.zip"
+              }
+          }
+          EOF
+
+          git add bucket/shard.json
+          git -c user.name="github-actions" -c user.email="github-actions@github.com" commit -m "Update to ${VERSION}" || echo "No changes to commit"
+          git push
+
   flathub:
     runs-on: ubuntu-latest
     steps:
       - name: Check secret
         id: check
         run: |
-          if [ -z "${{ secrets.FLATHUB_TOKEN }}" ]; then
+          if [ -z "${{ secrets.PACKAGE_REPOS_TOKEN }}" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Checkout repo
-        if: steps.check.outputs.skip != 'true'
-        uses: actions/checkout@v4
 
       - name: Collect release info
         if: steps.check.outputs.skip != 'true'
@@ -178,7 +377,7 @@ jobs:
           set -euo pipefail
           TAG="${{ steps.release.outputs.tag }}"
           curl -fsSL "https://github.com/th0rgal/shard/releases/download/${TAG}/SHA256SUMS.txt" -o /tmp/SHA256SUMS.txt
-          DEB_HASH="$(grep 'shard-launcher-linux-x64.deb' /tmp/SHA256SUMS.txt | awk '{print $1}')"
+          DEB_HASH="$(grep 'shard-launcher-linux-x64.deb$' /tmp/SHA256SUMS.txt | awk '{print $1}')"
           if [ -z "$DEB_HASH" ]; then
             echo "Missing shard-launcher-linux-x64.deb hash in SHA256SUMS.txt" >&2
             exit 1
@@ -189,17 +388,15 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         shell: bash
         env:
-          FLATHUB_TOKEN: ${{ secrets.FLATHUB_TOKEN }}
-          FLATHUB_REPO: ${{ secrets.FLATHUB_REPO }}
+          GH_TOKEN: ${{ secrets.PACKAGE_REPOS_TOKEN }}
         run: |
           set -euo pipefail
           TAG="${{ steps.release.outputs.tag }}"
           VERSION="${{ steps.release.outputs.version }}"
           DATE="${{ steps.release.outputs.date }}"
           DEB_HASH="${{ steps.hashes.outputs.deb_hash }}"
-          FLATHUB_REPO="${FLATHUB_REPO:-flathub/sh.shard.launcher}"
 
-          git clone "https://x-access-token:${FLATHUB_TOKEN}@github.com/${FLATHUB_REPO}.git" flathub-repo
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/Th0rgal/flathub.git" flathub-repo
           cd flathub-repo
 
           # Update manifest
@@ -211,7 +408,7 @@ jobs:
           sed -i "s|<releases>|<releases>\n${RELEASE_ENTRY}|" md.thomas.shard.launcher.metainfo.xml
 
           git add md.thomas.shard.launcher.yml md.thomas.shard.launcher.metainfo.xml
-          git -c user.name="github-actions" -c user.email="github-actions@github.com" commit -m "Update Shard Launcher to ${VERSION}"
+          git -c user.name="github-actions" -c user.email="github-actions@github.com" commit -m "Update Shard Launcher to ${VERSION}" || echo "No changes to commit"
           git push
 
   winget:
@@ -220,7 +417,7 @@ jobs:
       - name: Check secret
         id: check
         run: |
-          if [ -z "${{ secrets.WINGET_TOKEN }}" ]; then
+          if [ -z "${{ secrets.PACKAGE_REPOS_TOKEN }}" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
@@ -260,16 +457,14 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.WINGET_TOKEN }}
-          WINGET_FORK: ${{ secrets.WINGET_FORK }}
-          WINGET_BASE: ${{ secrets.WINGET_BASE }}
+          GH_TOKEN: ${{ secrets.PACKAGE_REPOS_TOKEN }}
         run: |
           set -euo pipefail
           TAG="${{ steps.release.outputs.tag }}"
           VERSION="${{ steps.release.outputs.version }}"
           MSI_HASH="${{ steps.hashes.outputs.msi_hash }}"
-          WINGET_FORK="${WINGET_FORK:-Th0rgal/winget-pkgs}"
-          WINGET_BASE="${WINGET_BASE:-microsoft/winget-pkgs}"
+          WINGET_FORK="Th0rgal/winget-pkgs"
+          WINGET_BASE="microsoft/winget-pkgs"
 
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${WINGET_FORK}.git" winget-pkgs
           cd winget-pkgs
