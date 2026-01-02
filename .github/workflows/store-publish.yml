@@ -249,7 +249,7 @@ jobs:
           set -euo pipefail
           TAG="${{ steps.release.outputs.tag }}"
           curl -fsSL "https://github.com/th0rgal/shard/releases/download/${TAG}/SHA256SUMS.txt" -o /tmp/SHA256SUMS.txt
-          MSI_HASH="$(grep 'shard-launcher-windows-x64.msi' /tmp/SHA256SUMS.txt | awk '{print $1}')"
+          MSI_HASH="$(grep 'shard-launcher-windows-x64.msi$' /tmp/SHA256SUMS.txt | awk '{print $1}')"
           if [ -z "$MSI_HASH" ]; then
             echo "Missing shard-launcher-windows-x64.msi hash in SHA256SUMS.txt" >&2
             exit 1
