@@ -287,7 +287,14 @@ jobs:
 
           git add "$TARGET_DIR"
           git -c user.name="github-actions" -c user.email="github-actions@github.com" commit -m "Add Shard Launcher ${VERSION}"
-          git push -u origin "$BRANCH"
+          git push -u origin "$BRANCH" --force
+
+          # Check if PR already exists
+          EXISTING_PR=$(gh pr list --repo "$WINGET_BASE" --head "${WINGET_FORK#*/}:$BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists for this version"
+            exit 0
+          fi
 
           gh pr create \
             --repo "$WINGET_BASE" \
