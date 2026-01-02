@@ -1,4 +1,4 @@
-name: Release publish automation
+name: Publish to stores
 # Publishes to AUR, Flathub, and Winget when a release is published
 
 on:
