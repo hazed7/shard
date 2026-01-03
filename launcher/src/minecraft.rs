@@ -1164,20 +1164,22 @@ struct AssetObject {
 }
 
 /// Extracts the library key from a Maven coordinate for deduplication.
-/// Format: group:artifact:version or group:artifact:version:classifier
+/// Format: group:artifact:version or group:artifact:version:classifier[:extension]
 /// Key includes classifier if present to avoid deduplicating native libs.
 /// Examples:
 ///   "org.objectweb.asm:asm:9.6" -> "org.objectweb.asm:asm"
 ///   "org.lwjgl:lwjgl:3.3.3:natives-macos-arm64" -> "org.lwjgl:lwjgl:natives-macos-arm64"
+///   "org.lwjgl:lwjgl:3.3.3:natives-macos-arm64:jar" -> "org.lwjgl:lwjgl:natives-macos-arm64"
 fn library_key(name: &str) -> Option<String> {
     let parts: Vec<&str> = name.split(':').collect();
     match parts.len() {
         // group:artifact:version
         3 => Some(format!("{}:{}", parts[0], parts[1])),
-        // group:artifact:version:classifier
-        4 => Some(format!("{}:{}:{}", parts[0], parts[1], parts[3])),
-        // At least group:artifact
-        n if n >= 2 => Some(format!("{}:{}", parts[0], parts[1])),
+        // group:artifact:version:classifier or group:artifact:version:classifier:extension
+        // In both cases, classifier is at index 3
+        n if n >= 4 => Some(format!("{}:{}:{}", parts[0], parts[1], parts[3])),
+        // group:artifact (no version)
+        2 => Some(format!("{}:{}", parts[0], parts[1])),
         _ => None,
     }
 }

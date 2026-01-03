@@ -434,6 +434,8 @@ jobs:
           # Copy generated sources (these are JSON arrays of source entries)
           cp /tmp/cargo-sources.json .
           cp /tmp/node-sources.json .
+          # Copy package-lock.json for npm ci in the build
+          cp ../desktop/package-lock.json .
 
           # Create the desktop file
           cat > md.thomas.shard.launcher.desktop << 'DESKTOP_EOF'
@@ -507,6 +509,10 @@ jobs:
                 # Metainfo
                 - type: file
                   path: md.thomas.shard.launcher.metainfo.xml
+                # package-lock.json for npm ci
+                - type: file
+                  path: package-lock.json
+                  dest: desktop
               build-commands:
                 # Build frontend
                 - cd desktop && npm ci --offline --legacy-peer-deps
@@ -591,7 +597,7 @@ jobs:
           </component>
           METAINFO_EOF
 
-          git add md.thomas.shard.launcher.yml md.thomas.shard.launcher.metainfo.xml md.thomas.shard.launcher.desktop cargo-sources.json node-sources.json
+          git add md.thomas.shard.launcher.yml md.thomas.shard.launcher.metainfo.xml md.thomas.shard.launcher.desktop cargo-sources.json node-sources.json package-lock.json
           git -c user.name="github-actions" -c user.email="github-actions@github.com" commit -m "Update Shard Launcher to ${VERSION} (build from source)" || echo "No changes to commit"
           git push
 
