@@ -5,51 +5,155 @@ description: How to download and install Shard Launcher
 
 # Download & Install
 
-## macOS
+Shard is available as both a **Desktop App** (graphical launcher) and a **CLI** (command-line tool). They share the same data directory, so profiles and accounts work with both.
 
-1. Download the latest `.dmg` file from the [download page](/download)
-2. Open the DMG and drag Shard Launcher to your Applications folder
-3. Launch Shard from Applications
+## Desktop App
+
+### macOS
+
+#### Homebrew (Recommended)
+
+```bash
+brew install th0rgal/shard/shard-launcher
+```
+
+#### Manual Download
+
+1. Download the latest `.dmg` from [GitHub Releases](https://github.com/th0rgal/shard/releases/latest)
+   - Apple Silicon: `shard-launcher-macos-arm64.dmg`
+   - Intel: `shard-launcher-macos-x64.dmg`
+2. Open the DMG and drag Shard Launcher to Applications
+3. Launch from Applications
 
 > **Note**: On first launch, macOS may show a security warning. Right-click the app and select "Open" to bypass Gatekeeper.
 
-## Windows
+### Windows
 
-1. Download the latest `.msi` or `.exe` file from the [download page](/download)
-2. Run the installer or execute the portable `.exe`
-3. Launch Shard from the Start Menu or desktop shortcut
+#### Manual Download
 
-## Linux
+1. Download from [GitHub Releases](https://github.com/th0rgal/shard/releases/latest):
+   - Installer: `shard-launcher-windows-x64.msi`
+   - Setup: `shard-launcher-windows-x64-setup.exe`
+2. Run the installer
+3. Launch from Start Menu
 
-1. Download the latest `.AppImage` or `.deb` file from the [download page](/download)
-2. For AppImage: Make it executable (`chmod +x Shard-Launcher-*.AppImage`) and run
-3. For Debian/Ubuntu: Install with `sudo dpkg -i Shard-Launcher-*.deb`
+### Linux
+
+#### AUR (Arch Linux)
+
+```bash
+# Using yay
+yay -S shard-launcher-bin
+
+# Or using paru
+paru -S shard-launcher-bin
+```
+
+#### Manual Download
+
+Download from [GitHub Releases](https://github.com/th0rgal/shard/releases/latest):
+
+**AppImage** (all distros):
+```bash
+chmod +x shard-launcher-linux-x64.AppImage
+./shard-launcher-linux-x64.AppImage
+```
+
+**Debian/Ubuntu** (.deb):
+```bash
+sudo dpkg -i shard-launcher-linux-x64.deb
+```
+
+---
+
+## CLI
+
+The CLI is a separate tool for scripting and automation.
+
+### macOS
+
+#### Homebrew (Recommended)
+
+```bash
+brew install th0rgal/shard/shard
+```
+
+#### Manual Download
+
+```bash
+# Apple Silicon
+curl -LO https://github.com/th0rgal/shard/releases/latest/download/shard-cli-macos-arm64.tar.gz
+tar -xzf shard-cli-macos-arm64.tar.gz
+sudo mv shard /usr/local/bin/
+
+# Intel
+curl -LO https://github.com/th0rgal/shard/releases/latest/download/shard-cli-macos-x64.tar.gz
+tar -xzf shard-cli-macos-x64.tar.gz
+sudo mv shard /usr/local/bin/
+```
+
+### Windows
+
+#### Scoop (Recommended)
+
+```powershell
+scoop bucket add shard https://github.com/Th0rgal/scoop-shard
+scoop install shard
+```
+
+#### Manual Download
+
+1. Download `shard-cli-windows-x64.zip` from [GitHub Releases](https://github.com/th0rgal/shard/releases/latest)
+2. Extract and add `shard.exe` to your PATH
+
+### Linux
+
+#### Homebrew
+
+```bash
+brew install th0rgal/shard/shard
+```
+
+#### AUR (Arch Linux)
+
+```bash
+yay -S shard
+```
+
+#### Manual Download
+
+```bash
+curl -LO https://github.com/th0rgal/shard/releases/latest/download/shard-cli-linux-x64.tar.gz
+tar -xzf shard-cli-linux-x64.tar.gz
+sudo mv shard /usr/local/bin/
+```
+
+---
+
+## Distribution Channels Summary
+
+| Channel | OS | Desktop | CLI | Install Command |
+|---------|-----|---------|-----|-----------------|
+| **Homebrew** | macOS, Linux | ✅ (macOS) | ✅ | `brew install th0rgal/shard/shard` |
+| **Scoop** | Windows | ❌ | ✅ | `scoop install shard` |
+| **AUR** | Arch Linux | ✅ | ✅ | `yay -S shard-launcher-bin` / `yay -S shard` |
+| **GitHub Releases** | All | ✅ | ✅ | [Download](https://github.com/th0rgal/shard/releases/latest) |
+
+---
 
 ## Verifying Downloads
 
-Each release includes SHA-256 checksums. To verify your download:
+Each release includes SHA-256 checksums in `SHA256SUMS.txt`:
 
 ```bash
-# macOS
-shasum -a 256 Shard-Launcher-*.dmg
+# macOS/Linux
+sha256sum -c SHA256SUMS.txt
 
-# Compare with the checksum in CHECKSUMS.txt from the release
+# Or verify a single file
+sha256sum shard-launcher-*.dmg
 ```
 
-## CLI (Optional)
-
-The CLI is a separate tool for scripting and automation. The desktop app and CLI share the same data directory, so profiles and accounts work with both.
-
-```bash
-# Build and install CLI
-cd launcher
-cargo install --path .
-
-# Now available as `shard` command
-shard --help
-```
-
-See the [CLI Reference](/docs/cli) for full documentation.
+---
 
 ## Data Location
 
@@ -65,8 +169,11 @@ Shard stores all data in `~/.shard/`. Both the desktop app and CLI use this dire
 └── config.json     # Launcher settings
 ```
 
+---
+
 ## Next Steps
 
 - [Create your first profile](/docs/getting-started/first-profile)
 - [Add your Microsoft account](/docs/getting-started/accounts)
 - [Learn about profiles](/docs/concepts/profiles)
+- [CLI Reference](/docs/cli)
