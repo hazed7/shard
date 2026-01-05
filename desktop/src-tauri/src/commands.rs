@@ -1,47 +1,36 @@
 use serde::{Deserialize, Serialize};
-use shard::accounts::{
-    delete_account_tokens, load_accounts, remove_account, save_accounts, set_active, Account,
-    Accounts,
-};
-use shard::auth::{request_device_code, DeviceCode};
-use shard::config::{load_config, save_config, Config};
-use shard::content_store::{
-    ContentItem, ContentStore, ContentType, ContentVersion, Platform, SearchOptions,
-};
-use shard::java::{
-    detect_installations, download_and_install_java, fetch_adoptium_release, find_compatible_java,
-    get_managed_java, get_required_java_version, is_java_compatible, list_managed_runtimes,
-    validate_java_path, AdoptiumRelease, JavaInstallation, JavaValidation,
-};
-use shard::library::{
-    ImportResult, Library, LibraryContentType, LibraryFilter, LibraryItem, LibraryItemInput,
-    LibraryStats, PurgeResult, Tag, UnusedItemsSummary,
-};
-use shard::logs::{
-    list_crash_reports, list_log_files, read_log_file, read_log_tail, LogEntry, LogFile, LogWatcher,
-};
-use shard::minecraft::{prepare, LaunchPlan};
-use shard::ops::{
-    ensure_fresh_account, finish_device_code_flow, parse_loader, resolve_input,
-    resolve_launch_account,
-};
+use shard::accounts::{Account, Accounts, delete_account_tokens, load_accounts, remove_account, save_accounts, set_active};
+use shard::auth::{DeviceCode, request_device_code};
+use shard::config::{Config, load_config, save_config};
+use shard::content_store::{ContentStore, ContentType, Platform, SearchOptions, ContentItem, ContentVersion};
+use shard::java::{JavaInstallation, JavaValidation, AdoptiumRelease, detect_installations, validate_java_path, get_required_java_version, is_java_compatible, fetch_adoptium_release, download_and_install_java, find_compatible_java, get_managed_java, list_managed_runtimes};
+use shard::library::{Library, LibraryItem, LibraryFilter, LibraryItemInput, LibraryContentType, LibraryStats, Tag, ImportResult, UnusedItemsSummary, PurgeResult};
+use shard::logs::{LogEntry, LogFile, LogWatcher, list_log_files, list_crash_reports, read_log_file, read_log_tail};
+use shard::minecraft::{LaunchPlan, prepare};
+use shard::ops::{finish_device_code_flow, parse_loader, resolve_input, resolve_launch_account, ensure_fresh_account};
 use shard::paths::Paths;
-use shard::profile::{
-    clone_profile, create_profile, delete_profile, diff_profiles, list_profiles, load_profile,
-    remove_mod, remove_resourcepack, remove_shaderpack, rename_profile, save_profile, upsert_mod,
-    upsert_resourcepack, upsert_shaderpack, ContentRef, Loader, Profile, Runtime,
-};
+use shard::profile::{ContentRef, Loader, Profile, Runtime, clone_profile, create_profile, delete_profile, diff_profiles, list_profiles, load_profile, remove_mod, remove_resourcepack, remove_shaderpack, rename_profile, save_profile, upsert_mod, upsert_resourcepack, upsert_shaderpack};
 use shard::skin::{
-    download_and_cache_cape, download_and_cache_skin, get_active_cape, get_active_skin,
-    get_avatar_url, get_body_url, get_cape_url, get_profile as get_mc_profile, get_skin_url,
-    hide_cape, reset_skin, set_cape, set_skin_url, upload_skin, MinecraftProfile, SkinVariant,
+    MinecraftProfile,
+    get_profile as get_mc_profile,
+    get_avatar_url,
+    get_body_url,
+    get_skin_url,
+    get_cape_url,
+    get_active_skin,
+    get_active_cape,
+    upload_skin,
+    set_skin_url,
+    reset_skin,
+    set_cape,
+    hide_cape,
+    SkinVariant,
+    download_and_cache_skin,
+    download_and_cache_cape,
 };
-use shard::store::{store_content, ContentKind};
-use shard::template::{init_builtin_templates, list_templates, load_template, Template};
-use shard::updates::{
-    apply_update, check_all_updates, check_profile_updates, get_storage_stats, set_content_enabled,
-    set_content_pinned, StorageStats, UpdateCheckResult,
-};
+use shard::store::{ContentKind, store_content};
+use shard::template::{Template, list_templates, load_template, init_builtin_templates};
+use shard::updates::{StorageStats, UpdateCheckResult, get_storage_stats, check_all_updates, check_profile_updates, set_content_pinned, set_content_enabled, apply_update};
 use std::path::PathBuf;
 use std::process::Command;
 use tauri::{AppHandle, Emitter};
@@ -173,7 +162,8 @@ pub fn create_profile_cmd(input: CreateProfileInput) -> Result<Profile, String> 
         args,
     };
 
-    create_profile(&paths, &input.id, &input.mc_version, loader, runtime).map_err(|e| e.to_string())
+    create_profile(&paths, &input.id, &input.mc_version, loader, runtime)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -226,11 +216,7 @@ pub fn diff_profiles_cmd(a: String, b: String) -> Result<DiffResult, String> {
     let profile_a = load_profile(&paths, &a).map_err(|e| e.to_string())?;
     let profile_b = load_profile(&paths, &b).map_err(|e| e.to_string())?;
     let (only_a, only_b, both) = diff_profiles(&profile_a, &profile_b);
-    Ok(DiffResult {
-        only_a,
-        only_b,
-        both,
-    })
+    Ok(DiffResult { only_a, only_b, both })
 }
 
 fn add_content(
@@ -243,8 +229,7 @@ fn add_content(
     let paths = load_paths()?;
     let mut profile_data = load_profile(&paths, profile_id).map_err(|e| e.to_string())?;
     let (path, source, file_name_hint) = resolve_input(&paths, input).map_err(|e| e.to_string())?;
-    let stored = store_content(&paths, kind, &path, source.clone(), file_name_hint.clone())
-        .map_err(|e| e.to_string())?;
+    let stored = store_content(&paths, kind, &path, source.clone(), file_name_hint.clone()).map_err(|e| e.to_string())?;
 
     // Auto-add to library
     if let Ok(library) = Library::from_paths(&paths) {
@@ -261,13 +246,9 @@ fn add_content(
             name: Some(name.clone().unwrap_or_else(|| stored.name.clone())),
             file_name: file_name_hint.clone(),
             source_url: source.clone(),
-            source_platform: if input.contains("modrinth.com") {
-                Some("modrinth".to_string())
-            } else if input.contains("curseforge.com") {
-                Some("curseforge".to_string())
-            } else {
-                Some("local".to_string())
-            },
+            source_platform: if input.contains("modrinth.com") { Some("modrinth".to_string()) }
+                else if input.contains("curseforge.com") { Some("curseforge".to_string()) }
+                else { Some("local".to_string()) },
             ..Default::default()
         };
         if let Ok(lib_item) = library.add_item(&lib_input) {
@@ -319,38 +300,17 @@ fn remove_content(profile_id: &str, target: &str, kind: ContentKind) -> Result<b
 }
 
 #[tauri::command]
-pub fn add_mod_cmd(
-    profile_id: String,
-    input: String,
-    name: Option<String>,
-    version: Option<String>,
-) -> Result<bool, String> {
+pub fn add_mod_cmd(profile_id: String, input: String, name: Option<String>, version: Option<String>) -> Result<bool, String> {
     add_content(&profile_id, &input, name, version, ContentKind::Mod)
 }
 
 #[tauri::command]
-pub fn add_resourcepack_cmd(
-    profile_id: String,
-    input: String,
-    name: Option<String>,
-    version: Option<String>,
-) -> Result<bool, String> {
-    add_content(
-        &profile_id,
-        &input,
-        name,
-        version,
-        ContentKind::ResourcePack,
-    )
+pub fn add_resourcepack_cmd(profile_id: String, input: String, name: Option<String>, version: Option<String>) -> Result<bool, String> {
+    add_content(&profile_id, &input, name, version, ContentKind::ResourcePack)
 }
 
 #[tauri::command]
-pub fn add_shaderpack_cmd(
-    profile_id: String,
-    input: String,
-    name: Option<String>,
-    version: Option<String>,
-) -> Result<bool, String> {
+pub fn add_shaderpack_cmd(profile_id: String, input: String, name: Option<String>, version: Option<String>) -> Result<bool, String> {
     add_content(&profile_id, &input, name, version, ContentKind::ShaderPack)
 }
 
@@ -407,10 +367,7 @@ pub fn get_config_cmd() -> Result<Config, String> {
 }
 
 #[tauri::command]
-pub fn save_config_cmd(
-    client_id: Option<String>,
-    client_secret: Option<String>,
-) -> Result<Config, String> {
+pub fn save_config_cmd(client_id: Option<String>, client_secret: Option<String>) -> Result<Config, String> {
     let paths = load_paths()?;
     let mut config = load_config(&paths).map_err(|e| e.to_string())?;
     config.msa_client_id = client_id.filter(|v| !v.trim().is_empty());
@@ -420,10 +377,7 @@ pub fn save_config_cmd(
 }
 
 #[tauri::command]
-pub fn request_device_code_cmd(
-    client_id: Option<String>,
-    client_secret: Option<String>,
-) -> Result<DeviceCode, String> {
+pub fn request_device_code_cmd(client_id: Option<String>, client_secret: Option<String>) -> Result<DeviceCode, String> {
     let paths = load_paths()?;
     let (id, secret) = resolve_credentials(&paths, client_id, client_secret)?;
     request_device_code(&id, secret.as_deref()).map_err(|e| e.to_string())
@@ -441,10 +395,7 @@ pub fn finish_device_code_flow_cmd(
 }
 
 #[tauri::command]
-pub fn prepare_profile_cmd(
-    profile_id: String,
-    account_id: Option<String>,
-) -> Result<LaunchPlanDto, String> {
+pub fn prepare_profile_cmd(profile_id: String, account_id: Option<String>) -> Result<LaunchPlanDto, String> {
     let paths = load_paths()?;
     let profile = load_profile(&paths, &profile_id).map_err(|e| e.to_string())?;
     let account = resolve_launch_account(&paths, account_id).map_err(|e| e.to_string())?;
@@ -453,34 +404,24 @@ pub fn prepare_profile_cmd(
 }
 
 #[tauri::command]
-pub fn launch_profile_cmd(
-    app: AppHandle,
-    profile_id: String,
-    account_id: Option<String>,
-) -> Result<(), String> {
+pub fn launch_profile_cmd(app: AppHandle, profile_id: String, account_id: Option<String>) -> Result<(), String> {
     let app_handle = app.clone();
 
     // Emit initial status immediately before spawning thread
-    let _ = app.emit(
-        "launch-status",
-        LaunchEvent {
-            stage: "queued".to_string(),
-            message: Some("Starting launch...".to_string()),
-        },
-    );
+    let _ = app.emit("launch-status", LaunchEvent {
+        stage: "queued".to_string(),
+        message: Some("Starting launch...".to_string()),
+    });
 
     // Use spawn_blocking for blocking I/O operations (HTTP requests, file I/O)
     tauri::async_runtime::spawn_blocking(move || {
         match run_launch(app_handle.clone(), profile_id.clone(), account_id) {
             Ok(()) => {}
             Err(err) => {
-                let _ = app_handle.emit(
-                    "launch-status",
-                    LaunchEvent {
-                        stage: "error".to_string(),
-                        message: Some(err),
-                    },
-                );
+                let _ = app_handle.emit("launch-status", LaunchEvent {
+                    stage: "error".to_string(),
+                    message: Some(err),
+                });
             }
         }
     });
@@ -490,40 +431,24 @@ pub fn launch_profile_cmd(
 #[tauri::command]
 pub fn instance_path_cmd(profile_id: String) -> Result<String, String> {
     let paths = load_paths()?;
-    Ok(paths
-        .instance_dir(&profile_id)
-        .to_string_lossy()
-        .to_string())
+    Ok(paths.instance_dir(&profile_id).to_string_lossy().to_string())
 }
 
-fn run_launch(
-    app: AppHandle,
-    profile_id: String,
-    account_id: Option<String>,
-) -> Result<(), String> {
-    let _ = app.emit(
-        "launch-status",
-        LaunchEvent {
-            stage: "preparing".to_string(),
-            message: Some("Downloading game files...".to_string()),
-        },
-    );
+fn run_launch(app: AppHandle, profile_id: String, account_id: Option<String>) -> Result<(), String> {
+    let _ = app.emit("launch-status", LaunchEvent {
+        stage: "preparing".to_string(),
+        message: Some("Downloading game files...".to_string()),
+    });
 
     let paths = load_paths()?;
-    let profile =
-        load_profile(&paths, &profile_id).map_err(|e| format!("Failed to load profile: {}", e))?;
-    let account = resolve_launch_account(&paths, account_id)
-        .map_err(|e| format!("Failed to resolve account: {}", e))?;
-    let plan = prepare(&paths, &profile, &account)
-        .map_err(|e| format!("Failed to prepare launch: {}", e))?;
+    let profile = load_profile(&paths, &profile_id).map_err(|e| format!("Failed to load profile: {}", e))?;
+    let account = resolve_launch_account(&paths, account_id).map_err(|e| format!("Failed to resolve account: {}", e))?;
+    let plan = prepare(&paths, &profile, &account).map_err(|e| format!("Failed to prepare launch: {}", e))?;
 
-    let _ = app.emit(
-        "launch-status",
-        LaunchEvent {
-            stage: "launching".to_string(),
-            message: Some("Starting Minecraft...".to_string()),
-        },
-    );
+    let _ = app.emit("launch-status", LaunchEvent {
+        stage: "launching".to_string(),
+        message: Some("Starting Minecraft...".to_string()),
+    });
 
     let mut child = Command::new(&plan.java_exec)
         .args(&plan.jvm_args)
@@ -535,29 +460,21 @@ fn run_launch(
         .spawn()
         .map_err(|e| format!("Failed to start Java: {}", e))?;
 
-    let _ = app.emit(
-        "launch-status",
-        LaunchEvent {
-            stage: "running".to_string(),
-            message: Some("Minecraft is running".to_string()),
-        },
-    );
+    let _ = app.emit("launch-status", LaunchEvent {
+        stage: "running".to_string(),
+        message: Some("Minecraft is running".to_string()),
+    });
 
-    let status = child
-        .wait()
-        .map_err(|e| format!("Failed to wait for process: {}", e))?;
+    let status = child.wait().map_err(|e| format!("Failed to wait for process: {}", e))?;
 
     if !status.success() {
         return Err(format!("Minecraft exited with status {}", status));
     }
 
-    let _ = app.emit(
-        "launch-status",
-        LaunchEvent {
-            stage: "done".to_string(),
-            message: None,
-        },
-    );
+    let _ = app.emit("launch-status", LaunchEvent {
+        stage: "done".to_string(),
+        message: None,
+    });
 
     Ok(())
 }
@@ -597,7 +514,8 @@ pub fn get_account_info_cmd(id: Option<String>) -> Result<AccountInfo, String> {
 
     // Get the cape URL from the profile
     let raw_cape_url = if let Some(ref profile) = profile {
-        get_active_cape(profile).map(|cape| cape.url.clone())
+        get_active_cape(profile)
+            .map(|cape| cape.url.clone())
     } else {
         None
     };
@@ -606,10 +524,7 @@ pub fn get_account_info_cmd(id: Option<String>) -> Result<AccountInfo, String> {
     let skin_url = match download_and_cache_skin(&raw_skin_url, &paths.store_skins) {
         Ok(cached_path) => {
             // Return as asset:// URL for Tauri to serve
-            format!(
-                "asset://localhost/{}",
-                cached_path.to_string_lossy().replace('\\', "/")
-            )
+            format!("asset://localhost/{}", cached_path.to_string_lossy().replace('\\', "/"))
         }
         Err(_) => {
             // Fallback to mc-heads.net which has CORS support
@@ -621,12 +536,9 @@ pub fn get_account_info_cmd(id: Option<String>) -> Result<AccountInfo, String> {
     let cape_url = if let Some(ref url) = raw_cape_url {
         match download_and_cache_cape(url, &paths.store_skins) {
             Ok(Some(cached_path)) => {
-                format!(
-                    "asset://localhost/{}",
-                    cached_path.to_string_lossy().replace('\\', "/")
-                )
+                format!("asset://localhost/{}", cached_path.to_string_lossy().replace('\\', "/"))
             }
-            _ => get_cape_url(&account.uuid),
+            _ => get_cape_url(&account.uuid)
         }
     } else {
         get_cape_url(&account.uuid)
@@ -644,34 +556,26 @@ pub fn get_account_info_cmd(id: Option<String>) -> Result<AccountInfo, String> {
 }
 
 #[tauri::command]
-pub fn upload_skin_cmd(
-    id: Option<String>,
-    path: String,
-    variant: String,
-    save_to_library: Option<bool>,
-) -> Result<Option<LibraryItem>, String> {
+pub fn upload_skin_cmd(id: Option<String>, path: String, variant: String, save_to_library: Option<bool>) -> Result<Option<LibraryItem>, String> {
     let paths = load_paths()?;
     let accounts = load_accounts(&paths).map_err(|e| e.to_string())?;
 
-    let target = id
-        .or_else(|| accounts.active.clone())
+    let target = id.or_else(|| accounts.active.clone())
         .ok_or_else(|| "no account selected".to_string())?;
 
-    let account = accounts
-        .accounts
-        .iter()
+    let account = accounts.accounts.iter()
         .find(|a| a.uuid == target || a.username.to_lowercase() == target.to_lowercase())
         .ok_or_else(|| "account not found".to_string())?;
 
     let skin_path = PathBuf::from(&path);
     let variant: SkinVariant = variant.parse().map_err(|e| format!("{}", e))?;
-    upload_skin(&account.minecraft.access_token, &skin_path, variant).map_err(|e| e.to_string())?;
+    upload_skin(&account.minecraft.access_token, &skin_path, variant)
+        .map_err(|e| e.to_string())?;
 
     // Optionally save to library
     if save_to_library.unwrap_or(true) {
         let library = Library::from_paths(&paths).map_err(|e| e.to_string())?;
-        let item = library
-            .import_file(&paths, &skin_path, LibraryContentType::Skin)
+        let item = library.import_file(&paths, &skin_path, LibraryContentType::Skin)
             .map_err(|e| e.to_string())?;
         Ok(Some(item))
     } else {
@@ -684,18 +588,16 @@ pub fn set_skin_url_cmd(id: Option<String>, url: String, variant: String) -> Res
     let paths = load_paths()?;
     let accounts = load_accounts(&paths).map_err(|e| e.to_string())?;
 
-    let target = id
-        .or_else(|| accounts.active.clone())
+    let target = id.or_else(|| accounts.active.clone())
         .ok_or_else(|| "no account selected".to_string())?;
 
-    let account = accounts
-        .accounts
-        .iter()
+    let account = accounts.accounts.iter()
         .find(|a| a.uuid == target || a.username.to_lowercase() == target.to_lowercase())
         .ok_or_else(|| "account not found".to_string())?;
 
     let variant: SkinVariant = variant.parse().map_err(|e| format!("{}", e))?;
-    set_skin_url(&account.minecraft.access_token, &url, variant).map_err(|e| e.to_string())
+    set_skin_url(&account.minecraft.access_token, &url, variant)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -703,13 +605,10 @@ pub fn reset_skin_cmd(id: Option<String>) -> Result<(), String> {
     let paths = load_paths()?;
     let accounts = load_accounts(&paths).map_err(|e| e.to_string())?;
 
-    let target = id
-        .or_else(|| accounts.active.clone())
+    let target = id.or_else(|| accounts.active.clone())
         .ok_or_else(|| "no account selected".to_string())?;
 
-    let account = accounts
-        .accounts
-        .iter()
+    let account = accounts.accounts.iter()
         .find(|a| a.uuid == target || a.username.to_lowercase() == target.to_lowercase())
         .ok_or_else(|| "account not found".to_string())?;
 
@@ -717,28 +616,19 @@ pub fn reset_skin_cmd(id: Option<String>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn apply_library_skin_cmd(
-    id: Option<String>,
-    item_id: i64,
-    variant: String,
-) -> Result<(), String> {
+pub fn apply_library_skin_cmd(id: Option<String>, item_id: i64, variant: String) -> Result<(), String> {
     let paths = load_paths()?;
     let accounts = load_accounts(&paths).map_err(|e| e.to_string())?;
 
-    let target = id
-        .or_else(|| accounts.active.clone())
+    let target = id.or_else(|| accounts.active.clone())
         .ok_or_else(|| "no account selected".to_string())?;
 
-    let account = accounts
-        .accounts
-        .iter()
+    let account = accounts.accounts.iter()
         .find(|a| a.uuid == target || a.username.to_lowercase() == target.to_lowercase())
         .ok_or_else(|| "account not found".to_string())?;
 
     let library = Library::from_paths(&paths).map_err(|e| e.to_string())?;
-    let item = library
-        .get_item(item_id)
-        .map_err(|e| e.to_string())?
+    let item = library.get_item(item_id).map_err(|e| e.to_string())?
         .ok_or_else(|| "skin not found in library".to_string())?;
 
     if item.content_type != LibraryContentType::Skin {
@@ -751,7 +641,8 @@ pub fn apply_library_skin_cmd(
     }
 
     let variant: SkinVariant = variant.parse().map_err(|e| format!("{}", e))?;
-    upload_skin(&account.minecraft.access_token, &skin_path, variant).map_err(|e| e.to_string())
+    upload_skin(&account.minecraft.access_token, &skin_path, variant)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -759,13 +650,10 @@ pub fn set_cape_cmd(id: Option<String>, cape_id: String) -> Result<(), String> {
     let paths = load_paths()?;
     let accounts = load_accounts(&paths).map_err(|e| e.to_string())?;
 
-    let target = id
-        .or_else(|| accounts.active.clone())
+    let target = id.or_else(|| accounts.active.clone())
         .ok_or_else(|| "no account selected".to_string())?;
 
-    let account = accounts
-        .accounts
-        .iter()
+    let account = accounts.accounts.iter()
         .find(|a| a.uuid == target || a.username.to_lowercase() == target.to_lowercase())
         .ok_or_else(|| "account not found".to_string())?;
 
@@ -777,13 +665,10 @@ pub fn hide_cape_cmd(id: Option<String>) -> Result<(), String> {
     let paths = load_paths()?;
     let accounts = load_accounts(&paths).map_err(|e| e.to_string())?;
 
-    let target = id
-        .or_else(|| accounts.active.clone())
+    let target = id.or_else(|| accounts.active.clone())
         .ok_or_else(|| "no account selected".to_string())?;
 
-    let account = accounts
-        .accounts
-        .iter()
+    let account = accounts.accounts.iter()
         .find(|a| a.uuid == target || a.username.to_lowercase() == target.to_lowercase())
         .ok_or_else(|| "account not found".to_string())?;
 
@@ -822,31 +707,15 @@ pub fn create_profile_from_template_cmd(input: CreateProfileInput) -> Result<Pro
         let runtime = Runtime {
             java: input.java.or(template.runtime.java),
             memory: input.memory.or(template.runtime.memory),
-            args: if input
-                .args
-                .as_ref()
-                .map(|a| !a.trim().is_empty())
-                .unwrap_or(false)
-            {
-                input
-                    .args
-                    .unwrap()
-                    .split_whitespace()
-                    .map(String::from)
-                    .collect()
+            args: if input.args.as_ref().map(|a| !a.trim().is_empty()).unwrap_or(false) {
+                input.args.unwrap().split_whitespace().map(String::from).collect()
             } else {
                 template.runtime.args
             },
         };
 
-        let mut profile = create_profile(
-            &paths,
-            &input.id,
-            &template.mc_version,
-            loader.clone(),
-            runtime,
-        )
-        .map_err(|e| e.to_string())?;
+        let mut profile = create_profile(&paths, &input.id, &template.mc_version, loader.clone(), runtime)
+            .map_err(|e| e.to_string())?;
 
         // Download content from template (mods, shaderpacks, resourcepacks)
         let store = ContentStore::modrinth_only();
@@ -863,9 +732,7 @@ pub fn create_profile_from_template_cmd(input: CreateProfileInput) -> Result<Pro
                     Some(&template.mc_version),
                     loader_type,
                 ) {
-                    if let Ok(content_ref) =
-                        store.download_to_store(&paths, &version, ContentType::Mod)
-                    {
+                    if let Ok(content_ref) = store.download_to_store(&paths, &version, ContentType::Mod) {
                         upsert_mod(&mut profile, content_ref);
                     }
                 }
@@ -877,12 +744,8 @@ pub fn create_profile_from_template_cmd(input: CreateProfileInput) -> Result<Pro
                 continue;
             }
             if let shard::template::ContentSource::Modrinth { project } = &shader.source {
-                if let Ok(version) =
-                    store.get_latest_version(Platform::Modrinth, project, None, None)
-                {
-                    if let Ok(content_ref) =
-                        store.download_to_store(&paths, &version, ContentType::ShaderPack)
-                    {
+                if let Ok(version) = store.get_latest_version(Platform::Modrinth, project, None, None) {
+                    if let Ok(content_ref) = store.download_to_store(&paths, &version, ContentType::ShaderPack) {
                         upsert_shaderpack(&mut profile, content_ref);
                     }
                 }
@@ -894,12 +757,8 @@ pub fn create_profile_from_template_cmd(input: CreateProfileInput) -> Result<Pro
                 continue;
             }
             if let shard::template::ContentSource::Modrinth { project } = &pack.source {
-                if let Ok(version) =
-                    store.get_latest_version(Platform::Modrinth, project, None, None)
-                {
-                    if let Ok(content_ref) =
-                        store.download_to_store(&paths, &version, ContentType::ResourcePack)
-                    {
+                if let Ok(version) = store.get_latest_version(Platform::Modrinth, project, None, None) {
+                    if let Ok(content_ref) = store.download_to_store(&paths, &version, ContentType::ResourcePack) {
                         upsert_resourcepack(&mut profile, content_ref);
                     }
                 }
@@ -919,9 +778,7 @@ pub fn create_profile_from_template_cmd(input: CreateProfileInput) -> Result<Pro
             _ => return Err("loader type and version must both be provided".to_string()),
         };
 
-        let args = input
-            .args
-            .unwrap_or_default()
+        let args = input.args.unwrap_or_default()
             .split_whitespace()
             .map(|s| s.to_string())
             .collect::<Vec<_>>();
@@ -963,9 +820,7 @@ pub fn store_search_cmd(input: StoreSearchInput) -> Result<Vec<ContentItem>, Str
     let has_cf_key = config.curseforge_api_key.is_some();
     let store = ContentStore::new(config.curseforge_api_key.as_deref());
 
-    let content_type = input
-        .content_type
-        .as_ref()
+    let content_type = input.content_type.as_ref()
         .map(|s| parse_content_type(s))
         .transpose()?;
 
@@ -982,13 +837,9 @@ pub fn store_search_cmd(input: StoreSearchInput) -> Result<Vec<ContentItem>, Str
         Some("modrinth") => store.search_modrinth(&options).map_err(|e| e.to_string()),
         Some("curseforge") => {
             if !has_cf_key {
-                return Err(
-                    "CurseForge search requires an API key. Add it in Settings.".to_string()
-                );
+                return Err("CurseForge search requires an API key. Add it in Settings.".to_string());
             }
-            store
-                .search_curseforge_only(&options)
-                .map_err(|e| e.to_string())
+            store.search_curseforge_only(&options).map_err(|e| e.to_string())
         }
         _ => store.search(&options).map_err(|e| e.to_string()),
     }
@@ -1000,9 +851,7 @@ pub fn store_get_project_cmd(project_id: String, platform: String) -> Result<Con
     let config = load_config(&paths).map_err(|e| e.to_string())?;
     let store = ContentStore::new(config.curseforge_api_key.as_deref());
     let platform = parse_platform(&platform)?;
-    store
-        .get_project(platform, &project_id)
-        .map_err(|e| e.to_string())
+    store.get_project(platform, &project_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1019,9 +868,7 @@ pub fn store_get_versions_cmd(
     let platform = parse_platform(&platform)?;
 
     // Fetch project to determine content type
-    let project = store
-        .get_project(platform, &project_id)
-        .map_err(|e| e.to_string())?;
+    let project = store.get_project(platform, &project_id).map_err(|e| e.to_string())?;
 
     // Determine the effective loader based on content type
     let effective_loader: Option<String> = match project.content_type {
@@ -1030,9 +877,7 @@ pub fn store_get_versions_cmd(
             // For shaders, detect if the profile has iris/optifine installed
             if let Some(pid) = &profile_id {
                 if let Ok(profile) = load_profile(&paths, pid) {
-                    profile
-                        .primary_shader_loader()
-                        .map(|sl| sl.modrinth_name().to_string())
+                    profile.primary_shader_loader().map(|sl| sl.modrinth_name().to_string())
                 } else {
                     None
                 }
@@ -1043,13 +888,7 @@ pub fn store_get_versions_cmd(
         ContentType::ResourcePack => None, // Resourcepacks use "minecraft" loader, no filter needed
     };
 
-    store
-        .get_versions(
-            platform,
-            &project_id,
-            game_version.as_deref(),
-            effective_loader.as_deref(),
-        )
+    store.get_versions(platform, &project_id, game_version.as_deref(), effective_loader.as_deref())
         .map_err(|e| e.to_string())
 }
 
@@ -1063,53 +902,35 @@ pub fn store_install_cmd(input: StoreInstallInput) -> Result<Profile, String> {
     let platform = parse_platform(&input.platform)?;
 
     // Get project info to determine content type
-    let item = store
-        .get_project(platform, &input.project_id)
-        .map_err(|e| e.to_string())?;
-    let ct = input
-        .content_type
-        .as_ref()
+    let item = store.get_project(platform, &input.project_id).map_err(|e| e.to_string())?;
+    let ct = input.content_type.as_ref()
         .map(|s| parse_content_type(s))
         .transpose()?
         .unwrap_or(item.content_type);
 
     // Determine effective loader based on content type
     let effective_loader: Option<String> = match ct {
-        ContentType::Mod | ContentType::ModPack => {
-            profile.loader.as_ref().map(|l| l.loader_type.clone())
-        }
+        ContentType::Mod | ContentType::ModPack => profile.loader.as_ref().map(|l| l.loader_type.clone()),
         ContentType::ShaderPack => {
             // For shaders, detect if the profile has iris/optifine installed
-            profile
-                .primary_shader_loader()
-                .map(|sl| sl.modrinth_name().to_string())
+            profile.primary_shader_loader().map(|sl| sl.modrinth_name().to_string())
         }
         ContentType::ResourcePack => None, // Resourcepacks use "minecraft" loader, no filter needed
     };
 
     let version = if let Some(v_id) = input.version_id.clone() {
-        let versions = store
-            .get_versions(platform, &input.project_id, None, None)
+        let versions = store.get_versions(platform, &input.project_id, None, None)
             .map_err(|e| e.to_string())?;
-        versions
-            .into_iter()
+        versions.into_iter()
             .find(|v| v.version == v_id || v.id == v_id)
             .ok_or_else(|| "version not found".to_string())?
     } else {
-        store
-            .get_latest_version(
-                platform,
-                &input.project_id,
-                Some(&profile.mc_version),
-                effective_loader.as_deref(),
-            )
+        store.get_latest_version(platform, &input.project_id, Some(&profile.mc_version), effective_loader.as_deref())
             .map_err(|e| e.to_string())?
     };
 
     // Download and store
-    let mut content_ref = store
-        .download_to_store(&paths, &version, ct)
-        .map_err(|e| e.to_string())?;
+    let mut content_ref = store.download_to_store(&paths, &version, ct).map_err(|e| e.to_string())?;
 
     // Add platform/project tracking for update checking
     content_ref.platform = Some(input.platform.clone());
@@ -1124,10 +945,7 @@ pub fn store_install_cmd(input: StoreInstallInput) -> Result<Profile, String> {
             ContentType::ResourcePack => "resourcepack",
             ContentType::ShaderPack => "shaderpack",
         };
-        let hash = content_ref
-            .hash
-            .strip_prefix("sha256:")
-            .unwrap_or(&content_ref.hash);
+        let hash = content_ref.hash.strip_prefix("sha256:").unwrap_or(&content_ref.hash);
         let lib_input = LibraryItemInput {
             hash: hash.to_string(),
             content_type: Some(lib_content_type.to_string()),
@@ -1136,10 +954,7 @@ pub fn store_install_cmd(input: StoreInstallInput) -> Result<Profile, String> {
             source_url: content_ref.source.clone(),
             source_platform: Some(input.platform.clone()),
             source_project_id: Some(input.project_id.clone()),
-            source_version: input
-                .version_id
-                .clone()
-                .or_else(|| Some(version.version.clone())),
+            source_version: input.version_id.clone().or_else(|| Some(version.version.clone())),
             ..Default::default()
         };
         let _ = library.add_item(&lib_input);
@@ -1165,11 +980,7 @@ pub fn list_log_files_cmd(profile_id: String) -> Result<Vec<LogFile>, String> {
 }
 
 #[tauri::command]
-pub fn read_logs_cmd(
-    profile_id: String,
-    file: Option<String>,
-    lines: Option<usize>,
-) -> Result<Vec<LogEntry>, String> {
+pub fn read_logs_cmd(profile_id: String, file: Option<String>, lines: Option<usize>) -> Result<Vec<LogEntry>, String> {
     let paths = load_paths()?;
     let log_path = if let Some(filename) = file {
         paths.instance_logs_dir(&profile_id).join(filename)
@@ -1203,10 +1014,7 @@ pub fn read_crash_report_cmd(profile_id: String, file: Option<String>) -> Result
         crash_dir.join(filename)
     } else {
         let files = list_crash_reports(&paths, &profile_id).map_err(|e| e.to_string())?;
-        files
-            .into_iter()
-            .next()
-            .map(|f| f.path)
+        files.into_iter().next().map(|f| f.path)
             .ok_or_else(|| "no crash reports found".to_string())?
     };
 
@@ -1220,19 +1028,16 @@ pub fn read_crash_report_cmd(profile_id: String, file: Option<String>) -> Result
 fn sanitize_event_segment(value: &str) -> String {
     value
         .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '-' | '/' | ':' | '_') {
-                c
-            } else {
-                '_'
-            }
-        })
+        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '-' | '/' | ':' | '_') { c } else { '_' })
         .collect()
 }
 
 /// Start watching a log file and emit events for new entries
 #[tauri::command]
-pub async fn start_log_watch(app: AppHandle, profile_id: String) -> Result<(), String> {
+pub async fn start_log_watch(
+    app: AppHandle,
+    profile_id: String,
+) -> Result<(), String> {
     let paths = load_paths()?;
     let log_path = paths.instance_latest_log(&profile_id);
 
@@ -1455,9 +1260,7 @@ pub fn fetch_forge_versions_cmd(mc_version: Option<String>) -> Result<Vec<String
         // Look for versions matching this MC version exactly
         // Key format: "1.20.1-recommended" or "1.20.1-latest"
         let prefix = format!("{}-", mc);
-        promos
-            .promos
-            .iter()
+        promos.promos.iter()
             .filter(|(key, _)| key.starts_with(&prefix))
             .map(|(_, version)| {
                 // Value is the forge version number
@@ -1467,9 +1270,7 @@ pub fn fetch_forge_versions_cmd(mc_version: Option<String>) -> Result<Vec<String
     } else {
         // Return all unique MC-version combinations
         let mut seen = std::collections::HashSet::new();
-        promos
-            .promos
-            .iter()
+        promos.promos.iter()
             .filter_map(|(key, version)| {
                 // Extract MC version from key (e.g., "1.20.1" from "1.20.1-recommended")
                 let mc = key.split('-').next()?;
@@ -1513,10 +1314,7 @@ fn compare_versions_desc(a: &str, b: &str) -> std::cmp::Ordering {
 
 /// Fetch loader versions for any supported loader type
 #[tauri::command]
-pub fn fetch_loader_versions_cmd(
-    loader_type: String,
-    mc_version: Option<String>,
-) -> Result<Vec<String>, String> {
+pub fn fetch_loader_versions_cmd(loader_type: String, mc_version: Option<String>) -> Result<Vec<String>, String> {
     match loader_type.to_lowercase().as_str() {
         "fabric" => fetch_fabric_versions_cmd(),
         "quilt" => fetch_quilt_versions_cmd(),
@@ -1660,15 +1458,10 @@ pub fn library_add_item_cmd(input: LibraryItemInput) -> Result<LibraryItem, Stri
 }
 
 #[tauri::command]
-pub fn library_update_item_cmd(
-    id: i64,
-    input: LibraryItemUpdateInput,
-) -> Result<LibraryItem, String> {
+pub fn library_update_item_cmd(id: i64, input: LibraryItemUpdateInput) -> Result<LibraryItem, String> {
     let paths = load_paths()?;
     let library = Library::from_paths(&paths).map_err(|e| e.to_string())?;
-    let item = library
-        .get_item(id)
-        .map_err(|e| e.to_string())?
+    let item = library.get_item(id).map_err(|e| e.to_string())?
         .ok_or_else(|| "item not found".to_string())?;
     let update = LibraryItemInput {
         hash: item.hash,
@@ -1729,24 +1522,16 @@ pub fn library_import_file_cmd(path: String, content_type: String) -> Result<Lib
     let library = Library::from_paths(&paths).map_err(|e| e.to_string())?;
     let ct = LibraryContentType::from_str(&content_type)
         .ok_or_else(|| "invalid content type".to_string())?;
-    library
-        .import_file(&paths, &PathBuf::from(path), ct)
-        .map_err(|e| e.to_string())
+    library.import_file(&paths, &PathBuf::from(path), ct).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn library_import_folder_cmd(
-    path: String,
-    content_type: String,
-    recursive: bool,
-) -> Result<ImportResult, String> {
+pub fn library_import_folder_cmd(path: String, content_type: String, recursive: bool) -> Result<ImportResult, String> {
     let paths = load_paths()?;
     let library = Library::from_paths(&paths).map_err(|e| e.to_string())?;
     let ct = LibraryContentType::from_str(&content_type)
         .ok_or_else(|| "invalid content type".to_string())?;
-    library
-        .import_folder(&paths, &PathBuf::from(path), ct, recursive)
-        .map_err(|e| e.to_string())
+    library.import_folder(&paths, &PathBuf::from(path), ct, recursive).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1764,9 +1549,7 @@ pub fn library_sync_cmd() -> Result<ImportResult, String> {
 
     // After syncing, enrich library items with metadata from profiles
     if let Err(e) = enrich_library_from_profiles(&paths, &library) {
-        result
-            .errors
-            .push(format!("Warning: Failed to enrich library metadata: {}", e));
+        result.errors.push(format!("Warning: Failed to enrich library metadata: {}", e));
     }
 
     Ok(result)
@@ -1781,54 +1564,45 @@ fn enrich_library_from_profiles(paths: &Paths, library: &Library) -> Result<usiz
         if let Ok(profile) = load_profile(paths, &profile_id) {
             // Enrich from mods
             for content in &profile.mods {
-                if library
-                    .enrich_item_from_content_ref(
-                        &content.hash,
-                        &content.name,
-                        content.file_name.as_deref(),
-                        content.source.as_deref(),
-                        content.platform.as_deref(),
-                        content.project_id.as_deref(),
-                        content.version.as_deref(),
-                    )
-                    .is_ok()
-                {
+                if library.enrich_item_from_content_ref(
+                    &content.hash,
+                    &content.name,
+                    content.file_name.as_deref(),
+                    content.source.as_deref(),
+                    content.platform.as_deref(),
+                    content.project_id.as_deref(),
+                    content.version.as_deref(),
+                ).is_ok() {
                     enriched += 1;
                 }
             }
 
             // Enrich from resourcepacks
             for content in &profile.resourcepacks {
-                if library
-                    .enrich_item_from_content_ref(
-                        &content.hash,
-                        &content.name,
-                        content.file_name.as_deref(),
-                        content.source.as_deref(),
-                        content.platform.as_deref(),
-                        content.project_id.as_deref(),
-                        content.version.as_deref(),
-                    )
-                    .is_ok()
-                {
+                if library.enrich_item_from_content_ref(
+                    &content.hash,
+                    &content.name,
+                    content.file_name.as_deref(),
+                    content.source.as_deref(),
+                    content.platform.as_deref(),
+                    content.project_id.as_deref(),
+                    content.version.as_deref(),
+                ).is_ok() {
                     enriched += 1;
                 }
             }
 
             // Enrich from shaderpacks
             for content in &profile.shaderpacks {
-                if library
-                    .enrich_item_from_content_ref(
-                        &content.hash,
-                        &content.name,
-                        content.file_name.as_deref(),
-                        content.source.as_deref(),
-                        content.platform.as_deref(),
-                        content.project_id.as_deref(),
-                        content.version.as_deref(),
-                    )
-                    .is_ok()
-                {
+                if library.enrich_item_from_content_ref(
+                    &content.hash,
+                    &content.name,
+                    content.file_name.as_deref(),
+                    content.source.as_deref(),
+                    content.platform.as_deref(),
+                    content.project_id.as_deref(),
+                    content.version.as_deref(),
+                ).is_ok() {
                     enriched += 1;
                 }
             }
@@ -1856,9 +1630,7 @@ pub fn library_list_tags_cmd() -> Result<Vec<Tag>, String> {
 pub fn library_create_tag_cmd(name: String, color: Option<String>) -> Result<Tag, String> {
     let paths = load_paths()?;
     let library = Library::from_paths(&paths).map_err(|e| e.to_string())?;
-    library
-        .create_tag(&name, color.as_deref())
-        .map_err(|e| e.to_string())
+    library.create_tag(&name, color.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1872,9 +1644,7 @@ pub fn library_delete_tag_cmd(id: i64) -> Result<bool, String> {
 pub fn library_set_item_tags_cmd(item_id: i64, tag_names: Vec<String>) -> Result<(), String> {
     let paths = load_paths()?;
     let library = Library::from_paths(&paths).map_err(|e| e.to_string())?;
-    library
-        .set_item_tags(item_id, &tag_names)
-        .map_err(|e| e.to_string())
+    library.set_item_tags(item_id, &tag_names).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1883,9 +1653,7 @@ pub fn library_add_to_profile_cmd(profile_id: String, item_id: i64) -> Result<Pr
     let library = Library::from_paths(&paths).map_err(|e| e.to_string())?;
     let mut profile = load_profile(&paths, &profile_id).map_err(|e| e.to_string())?;
 
-    let item = library
-        .get_item(item_id)
-        .map_err(|e| e.to_string())?
+    let item = library.get_item(item_id).map_err(|e| e.to_string())?
         .ok_or_else(|| "item not found".to_string())?;
 
     let content_ref = ContentRef {
@@ -1902,22 +1670,14 @@ pub fn library_add_to_profile_cmd(profile_id: String, item_id: i64) -> Result<Pr
     };
 
     match item.content_type {
-        LibraryContentType::Mod => {
-            upsert_mod(&mut profile, content_ref);
-        }
-        LibraryContentType::ResourcePack => {
-            upsert_resourcepack(&mut profile, content_ref);
-        }
-        LibraryContentType::ShaderPack => {
-            upsert_shaderpack(&mut profile, content_ref);
-        }
+        LibraryContentType::Mod => { upsert_mod(&mut profile, content_ref); }
+        LibraryContentType::ResourcePack => { upsert_resourcepack(&mut profile, content_ref); }
+        LibraryContentType::ShaderPack => { upsert_shaderpack(&mut profile, content_ref); }
         LibraryContentType::Skin => return Err("skins cannot be added to profiles".to_string()),
     };
 
     // Link in library
-    library
-        .link_item_to_profile(item_id, &profile_id, item.content_type)
-        .map_err(|e| e.to_string())?;
+    library.link_item_to_profile(item_id, &profile_id, item.content_type).map_err(|e| e.to_string())?;
 
     save_profile(&paths, &profile).map_err(|e| e.to_string())?;
     Ok(profile)
@@ -1931,9 +1691,7 @@ pub fn library_add_to_profile_cmd(profile_id: String, item_id: i64) -> Result<Pr
 pub fn get_data_path_cmd() -> Result<String, String> {
     let paths = load_paths()?;
     // Derive the base path from the profiles directory (profiles is at base/profiles)
-    let base = paths
-        .profiles
-        .parent()
+    let base = paths.profiles.parent()
         .ok_or_else(|| "could not determine data path".to_string())?;
     Ok(base.to_string_lossy().to_string())
 }
@@ -1963,9 +1721,7 @@ pub fn purge_unused_items_cmd(content_types: Vec<String>) -> Result<PurgeResult,
         .collect();
 
     // Always delete files from store when purging
-    library
-        .purge_unused_items(&paths, &types, true)
-        .map_err(|e| e.to_string())
+    library.purge_unused_items(&paths, &types, true).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1999,8 +1755,7 @@ pub fn check_all_updates_cmd() -> Result<UpdateCheckResult, String> {
 pub fn check_profile_updates_cmd(profile_id: String) -> Result<UpdateCheckResult, String> {
     let paths = load_paths()?;
     let config = load_config(&paths).map_err(|e| e.to_string())?;
-    check_profile_updates(&paths, &profile_id, config.curseforge_api_key.as_deref())
-        .map_err(|e| e.to_string())
+    check_profile_updates(&paths, &profile_id, config.curseforge_api_key.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -2012,15 +1767,8 @@ pub fn apply_content_update_cmd(
 ) -> Result<Profile, String> {
     let paths = load_paths()?;
     let config = load_config(&paths).map_err(|e| e.to_string())?;
-    apply_update(
-        &paths,
-        &profile_id,
-        &content_name,
-        &content_type,
-        &new_version_id,
-        config.curseforge_api_key.as_deref(),
-    )
-    .map_err(|e| e.to_string())
+    apply_update(&paths, &profile_id, &content_name, &content_type, &new_version_id, config.curseforge_api_key.as_deref())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -2031,8 +1779,7 @@ pub fn set_content_pinned_cmd(
     pinned: bool,
 ) -> Result<Profile, String> {
     let paths = load_paths()?;
-    set_content_pinned(&paths, &profile_id, &content_name, &content_type, pinned)
-        .map_err(|e| e.to_string())
+    set_content_pinned(&paths, &profile_id, &content_name, &content_type, pinned).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -2043,8 +1790,7 @@ pub fn set_content_enabled_cmd(
     enabled: bool,
 ) -> Result<Profile, String> {
     let paths = load_paths()?;
-    set_content_enabled(&paths, &profile_id, &content_name, &content_type, enabled)
-        .map_err(|e| e.to_string())
+    set_content_enabled(&paths, &profile_id, &content_name, &content_type, enabled).map_err(|e| e.to_string())
 }
 
 // Profile organization types (mirrors frontend types)
